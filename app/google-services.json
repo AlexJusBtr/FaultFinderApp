@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "614788696867",
+    "project_id": "faultfinderapp-b0c13",
+    "storage_bucket": "faultfinderapp-b0c13.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:614788696867:android:596d3126de9ab9828d5a96",
+        "android_client_info": {
+          "package_name": "com.eduvos.s4.faultfinderapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlj2_BCT7ZVoqn55edCGQ3AWksy2DVVhg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
