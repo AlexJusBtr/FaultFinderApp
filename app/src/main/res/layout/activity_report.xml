@@ -1,0 +1,484 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- Top App Bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:background="@color/pink"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingEnd="16dp">
+
+            <ImageButton
+                android:id="@+id/btnBack"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Back"
+                android:src="@android:drawable/ic_menu_revert"
+                app:tint="@color/green" />
+
+            <TextView
+                android:id="@+id/tvHeaderTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:letterSpacing="-0.02"
+                android:text="Report a Fault"
+                android:textColor="@color/green"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Segmented Tab Bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="#FFFFFF"
+            android:elevation="2dp"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:id="@+id/tabReport"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvTabReport"
+                    android:layout_width="wrap_content"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="Report"
+                    android:textColor="@color/green"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <View
+                    android:id="@+id/indicatorTabReport"
+                    android:layout_width="match_parent"
+                    android:layout_height="3dp"
+                    android:background="@color/green" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/tabNearby"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvTabNearby"
+                    android:layout_width="wrap_content"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="Nearby &amp; History"
+                    android:textColor="@color/grey"
+                    android:textSize="13sp" />
+
+                <View
+                    android:id="@+id/indicatorTabNearby"
+                    android:layout_width="match_parent"
+                    android:layout_height="3dp"
+                    android:background="@color/pink_light" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Container 1: Report Form (Fits on-screen without requiring scroll for submit) -->
+        <LinearLayout
+            android:id="@+id/layoutReportForm"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="10dp"
+            android:visibility="visible">
+
+            <!-- Title & Category Side-by-Side (7:3 ratio) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="7"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Title"
+                        android:textColor="#334155"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="42dp"
+                        android:layout_marginTop="3dp"
+                        android:background="@drawable/bg_input"
+                        android:hint="e.g. Water leak"
+                        android:inputType="textCapSentences"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:textColor="#1E293B"
+                        android:textColorHint="@color/grey"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="3"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Category"
+                        android:textColor="#334155"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <Spinner
+                        android:id="@+id/spinnerCategory"
+                        android:layout_width="match_parent"
+                        android:layout_height="42dp"
+                        android:layout_marginTop="3dp"
+                        android:background="@drawable/bg_input"
+                        android:entries="@array/fault_categories"
+                        android:paddingStart="6dp"
+                        android:paddingEnd="6dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Description -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Description"
+                android:textColor="#334155"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/etDescription"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginTop="3dp"
+                android:background="@drawable/bg_input"
+                android:gravity="top|start"
+                android:hint="Details (severity, landmarks, road hazards)..."
+                android:inputType="textMultiLine"
+                android:padding="8dp"
+                android:textColor="#1E293B"
+                android:textColorHint="@color/grey"
+                android:textSize="13sp" />
+
+            <!-- Location -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Location"
+                android:textColor="#334155"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="42dp"
+                android:layout_marginTop="3dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/etLocation"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_input"
+                    android:hint="Street name or suburb"
+                    android:inputType="textPostalAddress"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:textColor="#1E293B"
+                    android:textColorHint="@color/grey"
+                    android:textSize="13sp" />
+
+                <ImageButton
+                    android:id="@+id/locationBtn"
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_btn_green"
+                    android:contentDescription="Use Current GPS Location"
+                    android:src="@android:drawable/ic_menu_mylocation"
+                    app:tint="#FFFFFF" />
+            </LinearLayout>
+
+            <!-- Compact Photo Attachment (Single tap box) -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="10dp"
+                app:cardCornerRadius="10dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#CBD5E1"
+                app:strokeWidth="1.5dp">
+
+                <LinearLayout
+                    android:id="@+id/photoBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bg_photo_box"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/imgFaultPhoto"
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
+                        android:contentDescription="Take fault photo"
+                        android:src="@android:drawable/ic_menu_camera"
+                        app:tint="@color/green" />
+
+                    <TextView
+                        android:id="@+id/tvPhotoLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:text="Tap to capture / add fault photo"
+                        android:textColor="@color/green"
+                        android:textSize="12.5sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Anonymous Option -->
+            <CheckBox
+                android:id="@+id/cbAnonymous"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginTop="4dp"
+                android:text="Report anonymously"
+                android:textColor="#475569"
+                android:textSize="12.5sp" />
+
+            <!-- Submit Button (Directly visible without scrolling) -->
+            <Button
+                android:id="@+id/submitButton"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_btn_green"
+                android:elevation="2dp"
+                android:letterSpacing="0.02"
+                android:text="Submit Fault Report"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                app:backgroundTint="@null" />
+        </LinearLayout>
+
+        <!-- Container 2: Nearby & History List (Toggled via Tabs) -->
+        <LinearLayout
+            android:id="@+id/layoutNearbyList"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <RadioGroup
+                android:id="@+id/nearbyToggle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp">
+
+                <RadioButton
+                    android:id="@+id/rbNearMe"
+                    android:layout_width="wrap_content"
+                    android:layout_height="42dp"
+                    android:checked="true"
+                    android:text="Near me"
+                    android:textColor="#334155" />
+
+                <RadioButton
+                    android:id="@+id/rbAllHistory"
+                    android:layout_width="wrap_content"
+                    android:layout_height="42dp"
+                    android:layout_marginStart="16dp"
+                    android:text="All history"
+                    android:textColor="#334155" />
+            </RadioGroup>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="6dp"
+                app:cardBackgroundColor="@color/green_light"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="10dp">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_marginEnd="8dp"
+                        android:contentDescription="Info"
+                        android:src="@android:drawable/ic_dialog_info"
+                        app:tint="@color/green" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Check existing reports below before submitting to prevent duplicates."
+                        android:textColor="@color/green"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                android:id="@+id/emptyNearby"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:padding="28dp"
+                android:text="No reports near you yet"
+                android:textColor="@color/grey"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
+            <ListView
+                android:id="@+id/listNearby"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_weight="1"
+                android:clipToPadding="false"
+                android:divider="@android:color/transparent"
+                android:dividerHeight="8dp"
+                android:paddingBottom="84dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Bottom-Right Speed Dial FAB Cluster -->
+    <!-- Mini FAB 1: Left -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabLeft"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="20dp"
+        android:contentDescription="Map View"
+        android:src="@android:drawable/ic_dialog_map"
+        android:visibility="invisible"
+        app:backgroundTint="@color/green"
+        app:elevation="6dp"
+        app:fabSize="mini"
+        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+        app:tint="#FFFFFF" />
+
+    <!-- Mini FAB 2: Diagonally Top-Left -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabDiag"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="20dp"
+        android:contentDescription="My Reports"
+        android:src="@android:drawable/ic_menu_preferences"
+        android:visibility="invisible"
+        app:backgroundTint="@color/green"
+        app:elevation="6dp"
+        app:fabSize="mini"
+        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+        app:tint="#FFFFFF" />
+
+    <!-- Mini FAB 3: Top -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabTop"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="20dp"
+        android:contentDescription="Home"
+        android:src="@android:drawable/ic_menu_myplaces"
+        android:visibility="invisible"
+        app:backgroundTint="@color/green"
+        app:elevation="6dp"
+        app:fabSize="mini"
+        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+        app:tint="#FFFFFF" />
+
+    <!-- Main FAB: Bottom Right Anchor -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabMain"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="20dp"
+        android:contentDescription="Quick Actions"
+        android:src="@android:drawable/ic_input_add"
+        app:backgroundTint="@color/green"
+        app:elevation="8dp"
+        app:fabSize="normal"
+        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+        app:tint="#FFFFFF" />
+
+</FrameLayout>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="fault_categories">
+        <item>Roads</item>
+        <item>Water</item>
+        <item>Electricity</item>
+        <item>Streetlights</item>
+        <item>Waste</item>
+        <item>Other</item>
+    </string-array>
+</resources>

@@ -1,238 +1,306 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="@color/bg">
 
-    <!-- top bar -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="@color/pink"
-        android:padding="16dp"
-        android:gravity="center_vertical">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-        <ImageView
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginEnd="8dp"
-            android:src="@drawable/ic_logo" />
+        <!-- Top App Bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:background="@color/pink"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <ImageView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginEnd="10dp"
+                android:contentDescription="FaultFinder Logo"
+                android:src="@drawable/ic_logo" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:letterSpacing="-0.02"
+                android:text="FaultFinder"
+                android:textColor="@color/green"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <ImageButton
+                android:id="@+id/btnProfile"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Profile and Reports"
+                android:src="@android:drawable/ic_menu_myplaces"
+                app:tint="@color/green" />
+        </LinearLayout>
+
+        <!-- Search Bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_input"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:contentDescription="Search"
+                android:src="@android:drawable/ic_menu_search"
+                app:tint="@color/grey" />
+
+            <EditText
+                android:id="@+id/searchBar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginStart="8dp"
+                android:background="@null"
+                android:hint="Search area, road or fault..."
+                android:inputType="text"
+                android:textColor="#1E293B"
+                android:textColorHint="@color/grey"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- Map View Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="230dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="16dp"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="2dp"
+            app:strokeColor="#CBD5E1"
+            app:strokeWidth="1dp">
+
+            <org.osmdroid.views.MapView
+                android:id="@+id/mapView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Categories Section -->
         <TextView
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="FaultFinder"
-            android:textColor="@color/green"
-            android:textSize="25sp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="12dp"
+            android:text="Categories"
+            android:textColor="#334155"
+            android:textSize="13sp"
             android:textStyle="bold" />
 
-        <ImageButton
-            android:id="@+id/btnProfile"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@android:color/transparent"
-            android:src="@android:drawable/ic_menu_myplaces"
-            app:tint="@color/green" />
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:clipToPadding="false"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/roadsBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/bg_card"
+                    android:gravity="center"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="🚧 Roads"
+                    android:textColor="#1E293B"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/waterBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/bg_card"
+                    android:gravity="center"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="💧 Water"
+                    android:textColor="#1E293B"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/electricityBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/bg_card"
+                    android:gravity="center"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="⚡ Electricity"
+                    android:textColor="#1E293B"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/lightsBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/bg_card"
+                    android:gravity="center"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="💡 Streetlights"
+                    android:textColor="#1E293B"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/wasteBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/bg_card"
+                    android:gravity="center"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="🗑️ Waste"
+                    android:textColor="#1E293B"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/otherBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/bg_card"
+                    android:gravity="center"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="❓ Other"
+                    android:textColor="#1E293B"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <!-- Recent Reports Header -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="12dp"
+            android:text="Recent reports near you"
+            android:textColor="#334155"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <ListView
+            android:id="@+id/listRecentReports"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:divider="@android:color/transparent"
+            android:dividerHeight="6dp"
+            android:paddingBottom="84dp" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/welcomeText"
+    <!-- Bottom-Right Speed Dial FAB Cluster -->
+    <!-- Mini FAB 1: Left (Map) -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabMap"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="14dp"
-        android:text="Howzit!"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:textColor="#333333" />
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="20dp"
+        android:contentDescription="Map"
+        android:src="@android:drawable/ic_dialog_map"
+        android:visibility="invisible"
+        app:backgroundTint="@color/green"
+        app:elevation="6dp"
+        app:fabSize="mini"
+        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+        app:tint="#FFFFFF" />
 
-    <TextView
+    <!-- Mini FAB 2: Diagonally Top-Left (Settings / My Reports) -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabSettings"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:text="See something broken? Report it."
-        android:textColor="@color/grey" />
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="20dp"
+        android:contentDescription="Settings"
+        android:src="@android:drawable/ic_menu_preferences"
+        android:visibility="invisible"
+        app:backgroundTint="@color/green"
+        app:elevation="6dp"
+        app:fabSize="mini"
+        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+        app:tint="#FFFFFF" />
 
-    <EditText
-        android:id="@+id/searchBar"
-        android:layout_width="match_parent"
-        android:layout_height="45dp"
-        android:layout_margin="16dp"
-        android:background="@drawable/bg_input"
-        android:drawableStart="@android:drawable/ic_menu_search"
-        android:hint="Search area or fault..."
-        android:paddingStart="8dp"
-        android:inputType="text"
-        android:textSize="14sp" />
-
-    <Button
-        android:id="@+id/btnReportFault"
-        android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:background="@drawable/bg_btn_green"
-        app:backgroundTint="@null"
-        android:text="+ Report An Issue"
-        android:textColor="#FFFFFF"
-        android:textSize="17sp"
-        android:textStyle="bold" />
-
-    <TextView
+    <!-- Mini FAB 3: Top (Report a Fault) -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabReport"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="18dp"
-        android:text="Categories"
-        android:textStyle="bold"
-        android:textSize="18sp" />
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="20dp"
+        android:contentDescription="Report a Fault"
+        android:src="@android:drawable/ic_menu_edit"
+        android:visibility="invisible"
+        app:backgroundTint="@color/green"
+        app:elevation="6dp"
+        app:fabSize="mini"
+        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+        app:tint="#FFFFFF" />
 
-    <!-- categories, 2 rows of 3 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginStart="12dp"
-        android:layout_marginEnd="12dp"
-        android:layout_marginTop="6dp">
-
-        <TextView
-            android:id="@+id/roadsBtn"
-            android:layout_width="0dp"
-            android:layout_height="55dp"
-            android:layout_weight="1"
-            android:layout_margin="4dp"
-            android:background="@drawable/bg_card"
-            android:gravity="center"
-            android:text="🚧\nRoads"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/waterBtn"
-            android:layout_width="0dp"
-            android:layout_height="55dp"
-            android:layout_weight="1"
-            android:layout_margin="4dp"
-            android:background="@drawable/bg_card"
-            android:gravity="center"
-            android:text="💧\nWater"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/electricityBtn"
-            android:layout_width="0dp"
-            android:layout_height="55dp"
-            android:layout_weight="1"
-            android:layout_margin="4dp"
-            android:background="@drawable/bg_card"
-            android:gravity="center"
-            android:text="⚡\nElectricity"
-            android:textSize="12sp" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginStart="12dp"
-        android:layout_marginEnd="12dp">
-
-        <TextView
-            android:id="@+id/lightsBtn"
-            android:layout_width="0dp"
-            android:layout_height="55dp"
-            android:layout_weight="1"
-            android:layout_margin="4dp"
-            android:background="@drawable/bg_card"
-            android:gravity="center"
-            android:text="💡\nStreetlights"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/wasteBtn"
-            android:layout_width="0dp"
-            android:layout_height="55dp"
-            android:layout_weight="1"
-            android:layout_margin="4dp"
-            android:background="@drawable/bg_card"
-            android:gravity="center"
-            android:text="🗑️\nWaste"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/otherBtn"
-            android:layout_width="0dp"
-            android:layout_height="55dp"
-            android:layout_weight="1"
-            android:layout_margin="4dp"
-            android:background="@drawable/bg_card"
-            android:gravity="center"
-            android:text="❓\nOther"
-            android:textSize="12sp" />
-    </LinearLayout>
-
-    <TextView
+    <!-- Main FAB: Bottom Right Anchor -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabMain"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
-        android:text="Recent reports near you"
-        android:textStyle="bold"
-        android:textSize="16sp" />
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="20dp"
+        android:contentDescription="Actions"
+        android:src="@android:drawable/ic_input_add"
+        app:backgroundTint="@color/green"
+        app:elevation="8dp"
+        app:fabSize="normal"
+        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+        app:tint="#FFFFFF" />
 
-    
-    <ListView
-        android:id="@+id/listRecentReports"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_marginStart="12dp"
-        android:layout_marginEnd="12dp"
-        android:divider="@android:color/transparent"
-        android:dividerHeight="6dp"
- />
-
-    <!-- bottom nav -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:orientation="horizontal"
-        android:background="#FFFFFF"
-        android:elevation="8dp">
-
-        <Button
-            android:id="@+id/navHome"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:text="Home"
-            android:textColor="@color/green"
-            android:textSize="12sp" />
-
-        <Button
-            android:id="@+id/navMap"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:text="Map"
-            android:textColor="@color/grey"
-            android:textSize="12sp" />
-
-        <Button
-            android:id="@+id/navMyReports"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:text="My Reports"
-            android:textColor="@color/grey"
-            android:textSize="12sp" />
-    </LinearLayout>
-
-</LinearLayout>
+</FrameLayout>
