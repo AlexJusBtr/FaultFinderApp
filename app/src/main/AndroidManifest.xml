@@ -26,8 +26,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".MyReportsActivity" />
-        <activity android:name=".ReportActivity" />
+        <activity android:name=".MyReportsActivity"
+            android:exported="false" />
+        <activity android:name=".ReportActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ProfileActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MapActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

@@ -29,7 +29,18 @@ class MyReportsActivity : AppCompatActivity() {
             insets
         }
 
-        findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
+        // Home Reset Rule: Clear backstack and return to Home
+        findViewById<ImageButton>(R.id.btnBack).setOnClickListener {
+            startActivity(Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            })
+            finish()
+        }
+
+        findViewById<ImageButton>(R.id.btnProfile).setOnClickListener {
+            startActivity(Intent(this, ProfileActivity::class.java))
+            finish()
+        }
 
         setupSpeedDial()
     }
@@ -49,22 +60,27 @@ class MyReportsActivity : AppCompatActivity() {
 
         fabMain.setOnClickListener { toggleSpeedDial() }
 
-        // Map -> do nothing at the moment
-        fabLeft.setOnClickListener { toggleSpeedDial() }
+        // Map Button Fix: Routes properly and kills current instance
+        fabLeft.setOnClickListener {
+            toggleSpeedDial()
+            startActivity(Intent(this, MapActivity::class.java))
+            finish()
+        }
 
-        // Diag -> Home
+        // Diag -> Routes directly to Home, clears stack
         fabDiag.setOnClickListener {
             toggleSpeedDial()
-            val intent = Intent(this, MainActivity::class.java).apply {
+            startActivity(Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            }
-            startActivity(intent)
+            })
+            finish()
         }
 
         // Top -> Report a Fault
         fabTop.setOnClickListener {
             toggleSpeedDial()
             startActivity(Intent(this, ReportActivity::class.java))
+            finish()
         }
     }
 
@@ -75,12 +91,8 @@ class MyReportsActivity : AppCompatActivity() {
         if (isFabMenuOpen) {
             listOf(fabLeft, fabDiag, fabTop).forEach { it.visibility = View.VISIBLE }
             fabMain.animate().rotation(45f).setDuration(220).start()
-
-            // 1. To the Left
             fabLeft.animate().translationX(-dpToPx(75f)).translationY(0f).alpha(1f).scaleX(1f).scaleY(1f).setDuration(220).start()
-            // 2. Diagonally Top-Left
             fabDiag.animate().translationX(-dpToPx(55f)).translationY(-dpToPx(55f)).alpha(1f).scaleX(1f).scaleY(1f).setDuration(220).start()
-            // 3. Straight Top
             fabTop.animate().translationX(0f).translationY(-dpToPx(75f)).alpha(1f).scaleX(1f).scaleY(1f).setDuration(220).start()
         } else {
             fabMain.animate().rotation(0f).setDuration(200).start()

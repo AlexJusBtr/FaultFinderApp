@@ -12,7 +12,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Top App Bar -->
+        <!-- Top App Bar (Profile Button) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
@@ -44,42 +44,62 @@
                 android:layout_width="44dp"
                 android:layout_height="44dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Profile and Reports"
+                android:contentDescription="User Profile"
                 android:src="@android:drawable/ic_menu_myplaces"
                 app:tint="@color/green" />
         </LinearLayout>
 
-        <!-- Search Bar -->
+        <!-- Search Bar & GPS Recenter (9:1 Proportional Ratio) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="44dp"
             android:layout_marginStart="16dp"
             android:layout_marginTop="10dp"
             android:layout_marginEnd="16dp"
-            android:background="@drawable/bg_input"
-            android:gravity="center_vertical"
+            android:baselineAligned="false"
             android:orientation="horizontal"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp">
+            android:weightSum="10">
 
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:contentDescription="Search"
-                android:src="@android:drawable/ic_menu_search"
-                app:tint="@color/grey" />
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="9"
+                android:background="@drawable/bg_input"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp">
 
-            <EditText
-                android:id="@+id/searchBar"
-                android:layout_width="match_parent"
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:contentDescription="Search"
+                    android:src="@android:drawable/ic_menu_search"
+                    app:tint="@color/grey" />
+
+                <EditText
+                    android:id="@+id/searchBar"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="8dp"
+                    android:background="@null"
+                    android:hint="Search area, road or fault..."
+                    android:inputType="text"
+                    android:textColor="#1E293B"
+                    android:textColorHint="@color/grey"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/btnRecenter"
+                android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_marginStart="8dp"
-                android:background="@null"
-                android:hint="Search area, road or fault..."
-                android:inputType="text"
-                android:textColor="#1E293B"
-                android:textColorHint="@color/grey"
-                android:textSize="13sp" />
+                android:layout_weight="1"
+                android:background="@drawable/bg_btn_green"
+                android:contentDescription="Recenter Map"
+                android:src="@android:drawable/ic_menu_mylocation"
+                app:tint="#FFFFFF" />
         </LinearLayout>
 
         <!-- Map View Card -->
@@ -100,13 +120,13 @@
                 android:layout_height="match_parent" />
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Categories Section -->
+        <!-- Quick Report Section (Renamed from Categories) -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
             android:layout_marginTop="12dp"
-            android:text="Categories"
+            android:text="Quick Report"
             android:textColor="#334155"
             android:textSize="13sp"
             android:textStyle="bold" />
@@ -211,16 +231,37 @@
             </LinearLayout>
         </HorizontalScrollView>
 
-        <!-- Recent Reports Header -->
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- Clickable Recent Reports Header -->
+        <LinearLayout
+            android:id="@+id/headerRecentReports"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
             android:layout_marginTop="12dp"
-            android:text="Recent reports near you"
-            android:textColor="#334155"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+            android:layout_marginEnd="16dp"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Recent reports near you"
+                android:textColor="#334155"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="View all &gt;"
+                android:textColor="@color/green"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <ListView
             android:id="@+id/listRecentReports"
@@ -236,7 +277,6 @@
     </LinearLayout>
 
     <!-- Bottom-Right Speed Dial FAB Cluster -->
-    <!-- Mini FAB 1: Left (Map) -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabMap"
         android:layout_width="wrap_content"
@@ -244,7 +284,7 @@
         android:layout_gravity="bottom|end"
         android:layout_marginEnd="20dp"
         android:layout_marginBottom="20dp"
-        android:contentDescription="Map"
+        android:contentDescription="Full Map View"
         android:src="@android:drawable/ic_dialog_map"
         android:visibility="invisible"
         app:backgroundTint="@color/green"
@@ -253,16 +293,15 @@
         app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
         app:tint="#FFFFFF" />
 
-    <!-- Mini FAB 2: Diagonally Top-Left (Settings / My Reports) -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fabSettings"
+        android:id="@+id/fabTracker"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_marginEnd="20dp"
         android:layout_marginBottom="20dp"
-        android:contentDescription="Settings"
-        android:src="@android:drawable/ic_menu_preferences"
+        android:contentDescription="My Reports"
+        android:src="@android:drawable/ic_menu_agenda"
         android:visibility="invisible"
         app:backgroundTint="@color/green"
         app:elevation="6dp"
@@ -270,7 +309,6 @@
         app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
         app:tint="#FFFFFF" />
 
-    <!-- Mini FAB 3: Top (Report a Fault) -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabReport"
         android:layout_width="wrap_content"
@@ -287,7 +325,6 @@
         app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
         app:tint="#FFFFFF" />
 
-    <!-- Main FAB: Bottom Right Anchor -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabMain"
         android:layout_width="wrap_content"
@@ -295,7 +332,7 @@
         android:layout_gravity="bottom|end"
         android:layout_marginEnd="20dp"
         android:layout_marginBottom="20dp"
-        android:contentDescription="Actions"
+        android:contentDescription="Quick Actions"
         android:src="@android:drawable/ic_input_add"
         app:backgroundTint="@color/green"
         app:elevation="8dp"

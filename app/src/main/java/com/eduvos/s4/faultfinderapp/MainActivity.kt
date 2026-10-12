@@ -29,19 +29,19 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fabMain: FloatingActionButton
     private lateinit var fabReport: FloatingActionButton
     private lateinit var fabMap: FloatingActionButton
-    private lateinit var fabSettings: FloatingActionButton
+    private lateinit var fabTracker: FloatingActionButton
+    private val defaultCenter = GeoPoint(-33.9249, 18.4241) // Cape Town Center
     private var isFabMenuOpen = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // 1. Optimize osmdroid cache & threading
         val osmConfig = Configuration.getInstance()
         osmConfig.load(this, getSharedPreferences("osm_prefs", MODE_PRIVATE))
         osmConfig.userAgentValue = packageName
-        osmConfig.tileFileSystemCacheMaxBytes = 100L * 1024 * 1024 // 100 MB disk tile cache
-        osmConfig.tileFileSystemCacheTrimBytes = 80L * 1024 * 1024 // 80 MB trim threshold
+        osmConfig.tileFileSystemCacheMaxBytes = 100L * 1024 * 1024
+        osmConfig.tileFileSystemCacheTrimBytes = 80L * 1024 * 1024
         osmConfig.cacheMapTileCount = 24.toShort()
         osmConfig.tileDownloadThreads = 4
 
@@ -56,7 +56,7 @@ class MainActivity : AppCompatActivity() {
         setupMap()
         setupRecentReports()
         setupSpeedDial()
-        setupCategoryAndHeaderListeners()
+        setupHeaderListeners()
     }
 
     private fun setupMap() {
@@ -66,16 +66,12 @@ class MainActivity : AppCompatActivity() {
         map.isTilesScaledToDpi = true
         map.isFlingEnabled = true
         map.zoomController.setVisibility(CustomZoomButtonsController.Visibility.SHOW_AND_FADEOUT)
-        map.isHorizontalMapRepetitionEnabled = false
-        map.isVerticalMapRepetitionEnabled = false
 
         val colorMatrix = ColorMatrix().apply { setSaturation(0.1f) }
         map.overlayManager.tilesOverlay.setColorFilter(ColorMatrixColorFilter(colorMatrix))
 
-        val mapController = map.controller
-        mapController.setZoom(14.5)
-        val defaultCenter = GeoPoint(-33.9249, 18.4241) // Default Cape Town center
-        mapController.setCenter(defaultCenter)
+        map.controller.setZoom(14.5)
+        map.controller.setCenter(defaultCenter)
 
         val marker = Marker(map).apply {
             position = defaultCenter
@@ -83,6 +79,11 @@ class MainActivity : AppCompatActivity() {
             snippet = "Pothole - High Priority"
         }
         map.overlays.add(marker)
+
+        findViewById<ImageButton>(R.id.btnRecenter).setOnClickListener {
+            map.controller.animateTo(defaultCenter)
+            map.controller.setZoom(15.5)
+        }
     }
 
     private fun setupRecentReports() {
@@ -104,43 +105,62 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        val navigateToNearbyTab = {
+            val intent = Intent(this, ReportActivity::class.java).apply {
+                putExtra("OPEN_NEARBY_TAB", true)
+            }
+            startActivity(intent)
+        }
+
+        // Tapping header opens the Nearby & History tab in ReportActivity
+        findViewById<View>(R.id.headerRecentReports).setOnClickListener {
+            navigateToNearbyTab()
+        }
+
+        // Tapping items also opens the Nearby & History tab
         recentReportsList.setOnItemClickListener { _, _, _, _ ->
-            startActivity(Intent(this, MyReportsActivity::class.java))
+            navigateToNearbyTab()
         }
     }
 
     private fun setupSpeedDial() {
         fabMain = findViewById(R.id.fabMain)
-        fabReport = findViewById(R.id.fabReport) // Top
-        fabMap = findViewById(R.id.fabMap)       // Left
-        fabSettings = findViewById(R.id.fabSettings) // Diagonally Top-Left
+        fabReport = findViewById(R.id.fabReport)
+        fabMap = findViewById(R.id.fabMap)
+        fabTracker = findViewById(R.id.fabTracker)
 
-        listOf(fabReport, fabMap, fabSettings).forEach { resetFabInitialState(it) }
+        listOf(fabReport, fabMap, fabTracker).forEach {
+            it.alpha = 0f
+            it.scaleX = 0f
+            it.scaleY = 0f
+            it.visibility = View.INVISIBLE
+        }
 
         fabMain.setOnClickListener { toggleSpeedDial() }
 
-        // Report FAB routes directly to ReportActivity
         fabReport.setOnClickListener {
             toggleSpeedDial()
             startActivity(Intent(this, ReportActivity::class.java))
         }
 
-        // Map and Settings do nothing at the moment
-        fabMap.setOnClickListener {
+        fabTracker.setOnClickListener {
             toggleSpeedDial()
-        }
-
-        fabSettings.setOnClickListener {
-            toggleSpeedDial()
-        }
-    }
-
-    private fun setupCategoryAndHeaderListeners() {
-        findViewById<ImageButton>(R.id.btnProfile).setOnClickListener {
             startActivity(Intent(this, MyReportsActivity::class.java))
         }
 
-        val categoryButtons = mapOf(
+        // Left FAB opens the dedicated Map Screen
+        fabMap.setOnClickListener {
+            toggleSpeedDial()
+            startActivity(Intent(this, MapActivity::class.java))
+        }
+    }
+
+    private fun setupHeaderListeners() {
+        findViewById<ImageButton>(R.id.btnProfile).setOnClickListener {
+            startActivity(Intent(this, ProfileActivity::class.java))
+        }
+
+        val quickReportButtons = mapOf(
             R.id.roadsBtn to "Roads",
             R.id.waterBtn to "Water",
             R.id.electricityBtn to "Electricity",
@@ -149,7 +169,7 @@ class MainActivity : AppCompatActivity() {
             R.id.otherBtn to "Other"
         )
 
-        categoryButtons.forEach { (viewId, category) ->
+        quickReportButtons.forEach { (viewId, category) ->
             findViewById<TextView>(viewId).setOnClickListener {
                 val intent = Intent(this, ReportActivity::class.java).apply {
                     putExtra("SELECTED_CATEGORY", category)
@@ -159,64 +179,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun resetFabInitialState(fab: FloatingActionButton) {
-        fab.alpha = 0f
-        fab.scaleX = 0f
-        fab.scaleY = 0f
-        fab.visibility = View.INVISIBLE
-    }
-
     private fun dpToPx(dp: Float): Float = dp * resources.displayMetrics.density
 
     private fun toggleSpeedDial() {
         isFabMenuOpen = !isFabMenuOpen
-
         if (isFabMenuOpen) {
-            listOf(fabReport, fabMap, fabSettings).forEach { it.visibility = View.VISIBLE }
+            listOf(fabReport, fabMap, fabTracker).forEach { it.visibility = View.VISIBLE }
             fabMain.animate().rotation(45f).setDuration(220).start()
-
-            // 1. Mini FAB Left: Map
-            fabMap.animate()
-                .translationX(-dpToPx(75f))
-                .translationY(0f)
-                .alpha(1f)
-                .scaleX(1f)
-                .scaleY(1f)
-                .setDuration(220)
-                .start()
-
-            // 2. Mini FAB Diagonally Top-Left: Settings
-            fabSettings.animate()
-                .translationX(-dpToPx(55f))
-                .translationY(-dpToPx(55f))
-                .alpha(1f)
-                .scaleX(1f)
-                .scaleY(1f)
-                .setDuration(220)
-                .start()
-
-            // 3. Mini FAB Top: Report
-            fabReport.animate()
-                .translationX(0f)
-                .translationY(-dpToPx(75f))
-                .alpha(1f)
-                .scaleX(1f)
-                .scaleY(1f)
-                .setDuration(220)
-                .start()
+            fabMap.animate().translationX(-dpToPx(75f)).translationY(0f).alpha(1f).scaleX(1f).scaleY(1f).setDuration(220).start()
+            fabTracker.animate().translationX(-dpToPx(55f)).translationY(-dpToPx(55f)).alpha(1f).scaleX(1f).scaleY(1f).setDuration(220).start()
+            fabReport.animate().translationX(0f).translationY(-dpToPx(75f)).alpha(1f).scaleX(1f).scaleY(1f).setDuration(220).start()
         } else {
             fabMain.animate().rotation(0f).setDuration(200).start()
-
-            listOf(fabReport, fabMap, fabSettings).forEach { fab ->
-                fab.animate()
-                    .translationX(0f)
-                    .translationY(0f)
-                    .alpha(0f)
-                    .scaleX(0f)
-                    .scaleY(0f)
-                    .setDuration(200)
-                    .withEndAction { fab.visibility = View.INVISIBLE }
-                    .start()
+            listOf(fabReport, fabMap, fabTracker).forEach { fab ->
+                fab.animate().translationX(0f).translationY(0f).alpha(0f).scaleX(0f).scaleY(0f).setDuration(200)
+                    .withEndAction { fab.visibility = View.INVISIBLE }.start()
             }
         }
     }

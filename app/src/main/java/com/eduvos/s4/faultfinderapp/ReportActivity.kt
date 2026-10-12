@@ -10,6 +10,7 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.ListView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -27,7 +28,6 @@ class ReportActivity : AppCompatActivity() {
     private lateinit var tvTabNearby: TextView
     private lateinit var indicatorTabReport: View
     private lateinit var indicatorTabNearby: View
-
     private lateinit var etTitle: EditText
     private lateinit var etDescription: EditText
     private lateinit var etLocation: EditText
@@ -51,9 +51,19 @@ class ReportActivity : AppCompatActivity() {
             insets
         }
 
-        findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
+        // Home Reset Rule
+        findViewById<ImageButton>(R.id.btnBack).setOnClickListener {
+            startActivity(Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            })
+            finish()
+        }
 
-        // Views
+        findViewById<ImageButton>(R.id.btnProfile).setOnClickListener {
+            startActivity(Intent(this, ProfileActivity::class.java))
+            finish()
+        }
+
         layoutReportForm = findViewById(R.id.layoutReportForm)
         layoutNearbyList = findViewById(R.id.layoutNearbyList)
         tvTabReport = findViewById(R.id.tvTabReport)
@@ -67,45 +77,60 @@ class ReportActivity : AppCompatActivity() {
         spinnerCategory = findViewById(R.id.spinnerCategory)
         cbAnonymous = findViewById(R.id.cbAnonymous)
 
-        // Select category passed from MainActivity pills if present
         val selectedCat = intent.getStringExtra("SELECTED_CATEGORY")
         if (selectedCat != null) {
-            val adapter = spinnerCategory.adapter as? ArrayAdapter<String>
-            val position = (0 until spinnerCategory.count).firstOrNull {
-                spinnerCategory.getItemAtPosition(it).toString().equals(selectedCat, ignoreCase = true)
-            } ?: -1
-            if (position >= 0) spinnerCategory.setSelection(position)
+            val categories = resources.getStringArray(R.array.fault_categories)
+            val index = categories.indexOfFirst { it.equals(selectedCat, ignoreCase = true) }
+            if (index >= 0) spinnerCategory.setSelection(index)
         }
 
         setupTabs()
+        setupNearbyListView()
         setupSubmission()
         setupSpeedDial()
+
+        if (intent.getBooleanExtra("OPEN_NEARBY_TAB", false)) {
+            showNearbyTab()
+        }
     }
 
     private fun setupTabs() {
-        findViewById<LinearLayout>(R.id.tabReport).setOnClickListener {
-            layoutReportForm.visibility = View.VISIBLE
-            layoutNearbyList.visibility = View.GONE
-            tvTabReport.setTextColor(Color.parseColor("#1B5E20")) // @color/green
-            indicatorTabReport.setBackgroundColor(Color.parseColor("#1B5E20"))
-            tvTabNearby.setTextColor(Color.parseColor("#64748B")) // @color/grey
-            indicatorTabNearby.setBackgroundColor(Color.parseColor("#FCE4EC")) // @color/pink_light
-        }
+        findViewById<LinearLayout>(R.id.tabReport).setOnClickListener { showReportTab() }
+        findViewById<LinearLayout>(R.id.tabNearby).setOnClickListener { showNearbyTab() }
+    }
 
-        findViewById<LinearLayout>(R.id.tabNearby).setOnClickListener {
-            layoutReportForm.visibility = View.GONE
-            layoutNearbyList.visibility = View.VISIBLE
-            tvTabNearby.setTextColor(Color.parseColor("#1B5E20"))
-            indicatorTabNearby.setBackgroundColor(Color.parseColor("#1B5E20"))
-            tvTabReport.setTextColor(Color.parseColor("#64748B"))
-            indicatorTabReport.setBackgroundColor(Color.parseColor("#FCE4EC"))
-        }
+    private fun showReportTab() {
+        layoutReportForm.visibility = View.VISIBLE
+        layoutNearbyList.visibility = View.GONE
+        tvTabReport.setTextColor(Color.parseColor("#004225"))
+        indicatorTabReport.setBackgroundColor(Color.parseColor("#004225"))
+        tvTabNearby.setTextColor(Color.parseColor("#888888"))
+        indicatorTabNearby.setBackgroundColor(Color.parseColor("#FFF2F6"))
+    }
+
+    private fun showNearbyTab() {
+        layoutReportForm.visibility = View.GONE
+        layoutNearbyList.visibility = View.VISIBLE
+        tvTabNearby.setTextColor(Color.parseColor("#004225"))
+        indicatorTabNearby.setBackgroundColor(Color.parseColor("#004225"))
+        tvTabReport.setTextColor(Color.parseColor("#888888"))
+        indicatorTabReport.setBackgroundColor(Color.parseColor("#FFF2F6"))
+    }
+
+    private fun setupNearbyListView() {
+        val listNearby: ListView = findViewById(R.id.listNearby)
+        val mockNearbyData = listOf(
+            "🚧 Pothole on Main Rd • Table View (50m away)",
+            "💧 Burst Pipe • Blaauwberg St (120m away)",
+            "💡 Streetlight Out • Parklands North (250m away)",
+            "🗑️ Illegal Dumping • Sandown Rd (400m away)"
+        )
+        listNearby.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mockNearbyData)
     }
 
     private fun setupSubmission() {
         findViewById<Button>(R.id.submitButton).setOnClickListener {
             val title = etTitle.text.toString().trim()
-            val desc = etDescription.text.toString().trim()
             val loc = etLocation.text.toString().trim()
 
             if (title.isEmpty() || loc.isEmpty()) {
@@ -113,7 +138,6 @@ class ReportActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // Structured fault report ready for Firebase Firestore persistence
             Toast.makeText(this, "Submitting report to Firebase...", Toast.LENGTH_SHORT).show()
             finish()
         }
@@ -134,22 +158,25 @@ class ReportActivity : AppCompatActivity() {
 
         fabMain.setOnClickListener { toggleSpeedDial() }
 
-        // Map -> do nothing at the moment
-        fabLeft.setOnClickListener { toggleSpeedDial() }
+        fabLeft.setOnClickListener {
+            toggleSpeedDial()
+            startActivity(Intent(this, MapActivity::class.java))
+            finish()
+        }
 
-        // Diag -> My Reports
         fabDiag.setOnClickListener {
             toggleSpeedDial()
             startActivity(Intent(this, MyReportsActivity::class.java))
+            finish()
         }
 
-        // Top -> Return to Home
+        // Top button is home equivalent
         fabTop.setOnClickListener {
             toggleSpeedDial()
-            val intent = Intent(this, MainActivity::class.java).apply {
+            startActivity(Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            }
-            startActivity(intent)
+            })
+            finish()
         }
     }
 
@@ -160,12 +187,8 @@ class ReportActivity : AppCompatActivity() {
         if (isFabMenuOpen) {
             listOf(fabLeft, fabDiag, fabTop).forEach { it.visibility = View.VISIBLE }
             fabMain.animate().rotation(45f).setDuration(220).start()
-
-            // 1. To the Left
             fabLeft.animate().translationX(-dpToPx(75f)).translationY(0f).alpha(1f).scaleX(1f).scaleY(1f).setDuration(220).start()
-            // 2. Diagonally Top-Left
             fabDiag.animate().translationX(-dpToPx(55f)).translationY(-dpToPx(55f)).alpha(1f).scaleX(1f).scaleY(1f).setDuration(220).start()
-            // 3. Straight Top
             fabTop.animate().translationX(0f).translationY(-dpToPx(75f)).alpha(1f).scaleX(1f).scaleY(1f).setDuration(220).start()
         } else {
             fabMain.animate().rotation(0f).setDuration(200).start()

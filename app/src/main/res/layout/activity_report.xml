@@ -12,7 +12,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Top App Bar -->
+        <!-- Universal Top App Bar -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
@@ -33,14 +33,24 @@
 
             <TextView
                 android:id="@+id/tvHeaderTitle"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
+                android:layout_weight="1"
                 android:letterSpacing="-0.02"
                 android:text="Report a Fault"
                 android:textColor="@color/green"
                 android:textSize="20sp"
                 android:textStyle="bold" />
+
+            <ImageButton
+                android:id="@+id/btnProfile"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="User Profile"
+                android:src="@android:drawable/ic_menu_myplaces"
+                app:tint="@color/green" />
         </LinearLayout>
 
         <!-- Segmented Tab Bar -->
@@ -109,7 +119,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Container 1: Report Form (Fits on-screen without requiring scroll for submit) -->
+        <!-- Container 1: Report Form -->
         <LinearLayout
             android:id="@+id/layoutReportForm"
             android:layout_width="match_parent"
@@ -121,7 +131,6 @@
             android:paddingBottom="10dp"
             android:visibility="visible">
 
-            <!-- Title & Category Side-by-Side (7:3 ratio) -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -185,7 +194,6 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Description -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -209,7 +217,6 @@
                 android:textColorHint="@color/grey"
                 android:textSize="13sp" />
 
-            <!-- Location -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -251,7 +258,6 @@
                     app:tint="#FFFFFF" />
             </LinearLayout>
 
-            <!-- Compact Photo Attachment (Single tap box) -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="56dp"
@@ -292,7 +298,6 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Anonymous Option -->
             <CheckBox
                 android:id="@+id/cbAnonymous"
                 android:layout_width="wrap_content"
@@ -302,7 +307,6 @@
                 android:textColor="#475569"
                 android:textSize="12.5sp" />
 
-            <!-- Submit Button (Directly visible without scrolling) -->
             <Button
                 android:id="@+id/submitButton"
                 android:layout_width="match_parent"
@@ -318,7 +322,7 @@
                 app:backgroundTint="@null" />
         </LinearLayout>
 
-        <!-- Container 2: Nearby & History List (Toggled via Tabs) -->
+        <!-- Container 2: Nearby & History List -->
         <LinearLayout
             android:id="@+id/layoutNearbyList"
             android:layout_width="match_parent"
@@ -388,17 +392,6 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <TextView
-                android:id="@+id/emptyNearby"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:padding="28dp"
-                android:text="No reports near you yet"
-                android:textColor="@color/grey"
-                android:textSize="13sp"
-                android:visibility="gone" />
-
             <ListView
                 android:id="@+id/listNearby"
                 android:layout_width="match_parent"
@@ -414,7 +407,6 @@
     </LinearLayout>
 
     <!-- Bottom-Right Speed Dial FAB Cluster -->
-    <!-- Mini FAB 1: Left -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabLeft"
         android:layout_width="wrap_content"
@@ -422,7 +414,7 @@
         android:layout_gravity="bottom|end"
         android:layout_marginEnd="20dp"
         android:layout_marginBottom="20dp"
-        android:contentDescription="Map View"
+        android:contentDescription="Full Map View"
         android:src="@android:drawable/ic_dialog_map"
         android:visibility="invisible"
         app:backgroundTint="@color/green"
@@ -431,7 +423,6 @@
         app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
         app:tint="#FFFFFF" />
 
-    <!-- Mini FAB 2: Diagonally Top-Left -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabDiag"
         android:layout_width="wrap_content"
@@ -440,7 +431,7 @@
         android:layout_marginEnd="20dp"
         android:layout_marginBottom="20dp"
         android:contentDescription="My Reports"
-        android:src="@android:drawable/ic_menu_preferences"
+        android:src="@android:drawable/ic_menu_agenda"
         android:visibility="invisible"
         app:backgroundTint="@color/green"
         app:elevation="6dp"
@@ -448,7 +439,6 @@
         app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
         app:tint="#FFFFFF" />
 
-    <!-- Mini FAB 3: Top -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabTop"
         android:layout_width="wrap_content"
@@ -465,7 +455,6 @@
         app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
         app:tint="#FFFFFF" />
 
-    <!-- Main FAB: Bottom Right Anchor -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabMain"
         android:layout_width="wrap_content"
