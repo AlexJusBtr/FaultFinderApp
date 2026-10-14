@@ -40,6 +40,9 @@
         <activity
             android:name=".MapActivity"
             android:exported="false" />
+        <activity
+            android:name=".TrackActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

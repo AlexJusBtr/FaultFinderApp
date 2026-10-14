@@ -20,7 +20,28 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 
+/**
+ * Activity hosting both the Fault Reporting submission form and the Nearby & History
+ * duplicate-check list using a single segmented layout (activity_report.xml).
+ */
 class ReportActivity : AppCompatActivity() {
+
+    /**
+     * Data structure for items displayed in the Nearby & History tab.
+     */
+    data class NearbyFaultItem(
+        val ref: String,
+        val emoji: String,
+        val title: String,
+        val location: String,
+        val distanceText: String,
+        val status: String,
+        val category: String,
+        val date: String,
+        val description: String,
+        val lat: Double,
+        val lon: Double
+    )
 
     private lateinit var layoutReportForm: LinearLayout
     private lateinit var layoutNearbyList: LinearLayout
@@ -39,6 +60,61 @@ class ReportActivity : AppCompatActivity() {
     private lateinit var fabDiag: FloatingActionButton
     private lateinit var fabTop: FloatingActionButton
     private var isFabMenuOpen = false
+
+    private val nearbyFaults = listOf(
+        NearbyFaultItem(
+            ref = "#CT-0001",
+            emoji = "🚧",
+            title = "Pothole on Main Rd",
+            location = "Table View",
+            distanceText = "50m away",
+            status = "Pending",
+            category = "Roads",
+            date = "12 Oct 2026",
+            description = "Deep pothole in the left lane near the intersection, causing vehicles to swerve.",
+            lat = -33.8267,
+            lon = 18.4912
+        ),
+        NearbyFaultItem(
+            ref = "#CT-0002",
+            emoji = "💧",
+            title = "Burst Pipe",
+            location = "Blaauwberg St",
+            distanceText = "120m away",
+            status = "In Progress",
+            category = "Water",
+            date = "13 Oct 2026",
+            description = "Clean water gushing onto the pavement and flooding the storm drain.",
+            lat = -33.8075,
+            lon = 18.4735
+        ),
+        NearbyFaultItem(
+            ref = "#CT-0003",
+            emoji = "💡",
+            title = "Streetlight Out",
+            location = "Parklands North",
+            distanceText = "250m away",
+            status = "Resolved",
+            category = "Streetlights",
+            date = "10 Oct 2026",
+            description = "Three consecutive streetlights out along the main residential stretch.",
+            lat = -33.7965,
+            lon = 18.5042
+        ),
+        NearbyFaultItem(
+            ref = "#CT-0004",
+            emoji = "🗑️",
+            title = "Illegal Dumping",
+            location = "Sandown Rd",
+            distanceText = "400m away",
+            status = "Pending",
+            category = "Waste",
+            date = "14 Oct 2026",
+            description = "Construction rubble and household refuse dumped on the road verge.",
+            lat = -33.8012,
+            lon = 18.5180
+        )
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,6 +153,11 @@ class ReportActivity : AppCompatActivity() {
         spinnerCategory = findViewById(R.id.spinnerCategory)
         cbAnonymous = findViewById(R.id.cbAnonymous)
 
+        // Pre-check anonymous box if user enabled "Always Report Anonymously" in Settings
+        val settingsPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
+        cbAnonymous.isChecked = settingsPrefs.getBoolean("default_anonymous", false)
+
+        // Pre-select fault category if launched from a Home Quick Report button
         val selectedCat = intent.getStringExtra("SELECTED_CATEGORY")
         if (selectedCat != null) {
             val categories = resources.getStringArray(R.array.fault_categories)
@@ -89,6 +170,7 @@ class ReportActivity : AppCompatActivity() {
         setupSubmission()
         setupSpeedDial()
 
+        // Switch immediately to the Nearby & History tab if requested by MainActivity
         if (intent.getBooleanExtra("OPEN_NEARBY_TAB", false)) {
             showNearbyTab()
         }
@@ -99,6 +181,9 @@ class ReportActivity : AppCompatActivity() {
         findViewById<LinearLayout>(R.id.tabNearby).setOnClickListener { showNearbyTab() }
     }
 
+    /**
+     * Displays the Report Form container and hides the Nearby & History container.
+     */
     private fun showReportTab() {
         layoutReportForm.visibility = View.VISIBLE
         layoutNearbyList.visibility = View.GONE
@@ -108,6 +193,9 @@ class ReportActivity : AppCompatActivity() {
         indicatorTabNearby.setBackgroundColor(Color.parseColor("#FFF2F6"))
     }
 
+    /**
+     * Displays the Nearby & History container and hides the Report Form container.
+     */
     private fun showNearbyTab() {
         layoutReportForm.visibility = View.GONE
         layoutNearbyList.visibility = View.VISIBLE
@@ -117,17 +205,36 @@ class ReportActivity : AppCompatActivity() {
         indicatorTabReport.setBackgroundColor(Color.parseColor("#FFF2F6"))
     }
 
+    /**
+     * Populates the Nearby & History list and opens TrackActivity when any item is tapped.
+     */
     private fun setupNearbyListView() {
         val listNearby: ListView = findViewById(R.id.listNearby)
-        val mockNearbyData = listOf(
-            "🚧 Pothole on Main Rd • Table View (50m away)",
-            "💧 Burst Pipe • Blaauwberg St (120m away)",
-            "💡 Streetlight Out • Parklands North (250m away)",
-            "🗑️ Illegal Dumping • Sandown Rd (400m away)"
-        )
-        listNearby.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mockNearbyData)
+        val displayRows = nearbyFaults.map {
+            "${it.emoji} ${it.title} • ${it.location} (${it.distanceText})"
+        }
+        listNearby.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, displayRows)
+
+        listNearby.setOnItemClickListener { _, _, position, _ ->
+            val fault = nearbyFaults[position]
+            val intent = Intent(this, TrackActivity::class.java).apply {
+                putExtra("EXTRA_REF", fault.ref)
+                putExtra("EXTRA_TITLE", fault.title)
+                putExtra("EXTRA_LOCATION", fault.location)
+                putExtra("EXTRA_STATUS", fault.status)
+                putExtra("EXTRA_CATEGORY", fault.category)
+                putExtra("EXTRA_DATE", fault.date)
+                putExtra("EXTRA_DESCRIPTION", fault.description)
+                putExtra("EXTRA_LAT", fault.lat)
+                putExtra("EXTRA_LON", fault.lon)
+            }
+            startActivity(intent)
+        }
     }
 
+    /**
+     * Validates form inputs before submitting the fault report.
+     */
     private fun setupSubmission() {
         findViewById<Button>(R.id.submitButton).setOnClickListener {
             val title = etTitle.text.toString().trim()
@@ -170,7 +277,6 @@ class ReportActivity : AppCompatActivity() {
             finish()
         }
 
-        // Top button is home equivalent
         fabTop.setOnClickListener {
             toggleSpeedDial()
             startActivity(Intent(this, MainActivity::class.java).apply {

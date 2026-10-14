@@ -23,20 +23,93 @@ import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 
+/**
+ * Home dashboard activity featuring an embedded OpenStreetMap preview,
+ * quick-category reporting buttons, a recent reports list, and the speed-dial navigation FAB.
+ */
 class MainActivity : AppCompatActivity() {
+
+    /**
+     * Data model representing a fault item displayed on the Home screen and map preview.
+     */
+    data class FaultPreview(
+        val ref: String,
+        val emoji: String,
+        val title: String,
+        val location: String,
+        val status: String,
+        val category: String,
+        val date: String,
+        val description: String,
+        val lat: Double,
+        val lon: Double
+    )
 
     private lateinit var map: MapView
     private lateinit var fabMain: FloatingActionButton
     private lateinit var fabReport: FloatingActionButton
     private lateinit var fabMap: FloatingActionButton
     private lateinit var fabTracker: FloatingActionButton
-    private val defaultCenter = GeoPoint(-33.9249, 18.4241) // Cape Town Center
+    private val defaultCenter = GeoPoint(-33.8120, 18.4900) // Table View / Parklands area center
     private var isFabMenuOpen = false
+
+    // Sample fault records used until live Firestore listener is attached
+    private val recentFaults = listOf(
+        FaultPreview(
+            ref = "#CT-0001",
+            emoji = "🚧",
+            title = "Pothole on Main Rd",
+            location = "Table View",
+            status = "Pending",
+            category = "Roads",
+            date = "12 Oct 2026",
+            description = "Deep pothole in the left lane near the intersection, causing vehicles to swerve.",
+            lat = -33.8267,
+            lon = 18.4912
+        ),
+        FaultPreview(
+            ref = "#CT-0002",
+            emoji = "💧",
+            title = "Burst Pipe",
+            location = "Blaauwberg St",
+            status = "In Progress",
+            category = "Water",
+            date = "13 Oct 2026",
+            description = "Clean water gushing onto the pavement and flooding the storm drain.",
+            lat = -33.8075,
+            lon = 18.4735
+        ),
+        FaultPreview(
+            ref = "#CT-0003",
+            emoji = "💡",
+            title = "Streetlight Out",
+            location = "Parklands North",
+            status = "Resolved",
+            category = "Streetlights",
+            date = "10 Oct 2026",
+            description = "Three consecutive streetlights out along the main residential stretch.",
+            lat = -33.7965,
+            lon = 18.5042
+        ),
+        FaultPreview(
+            ref = "#CT-0004",
+            emoji = "🗑️",
+            title = "Illegal Dumping",
+            location = "Sandown Rd",
+            status = "Pending",
+            category = "Waste",
+            date = "14 Oct 2026",
+            description = "Construction rubble and household refuse dumped on the road verge.",
+            lat = -33.8012,
+            lon = 18.5180
+        )
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // Configure osmdroid tile cache and user agent
         val osmConfig = Configuration.getInstance()
         osmConfig.load(this, getSharedPreferences("osm_prefs", MODE_PRIVATE))
         osmConfig.userAgentValue = packageName
@@ -59,6 +132,10 @@ class MainActivity : AppCompatActivity() {
         setupHeaderListeners()
     }
 
+    /**
+     * Initializes the embedded OpenStreetMap view, applies a subtle desaturation filter,
+     * and places markers for recent faults.
+     */
     private fun setupMap() {
         map = findViewById(R.id.mapView)
         map.setTileSource(TileSourceFactory.MAPNIK)
@@ -70,32 +147,41 @@ class MainActivity : AppCompatActivity() {
         val colorMatrix = ColorMatrix().apply { setSaturation(0.1f) }
         map.overlayManager.tilesOverlay.setColorFilter(ColorMatrixColorFilter(colorMatrix))
 
-        map.controller.setZoom(14.5)
+        map.controller.setZoom(13.0)
         map.controller.setCenter(defaultCenter)
 
-        val marker = Marker(map).apply {
-            position = defaultCenter
-            title = "Sample Fault"
-            snippet = "Pothole - High Priority"
+        // Add markers for each recent fault and allow tapping the marker window to view details
+        recentFaults.forEach { fault ->
+            val marker = Marker(map).apply {
+                position = GeoPoint(fault.lat, fault.lon)
+                title = "${fault.title} (${fault.ref})"
+                snippet = "${fault.category} • ${fault.status}"
+            }
+            map.overlays.add(marker)
         }
-        map.overlays.add(marker)
 
+        // Recenter button restores default zoom and position
         findViewById<ImageButton>(R.id.btnRecenter).setOnClickListener {
             map.controller.animateTo(defaultCenter)
-            map.controller.setZoom(15.5)
+            map.controller.setZoom(14.0)
         }
     }
 
+    /**
+     * Populates the recent reports ListView and wires click listeners for both
+     * the section header (opens Nearby tab) and individual items (opens TrackActivity).
+     */
     private fun setupRecentReports() {
         val recentReportsList: ListView = findViewById(R.id.listRecentReports)
-        val reportsData = listOf(
-            "🚧 Pothole on Main Rd • Table View (Pending)",
-            "💧 Burst Pipe • Blaauwberg St (In Progress)",
-            "💡 Streetlight Out • Parklands North (Resolved)",
-            "🗑️ Illegal Dumping • Sandown Rd (Pending)"
-        )
+        val reportsDisplayList = recentFaults.map {
+            "${it.emoji} ${it.title} • ${it.location} (${it.status})"
+        }
 
-        recentReportsList.adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, reportsData) {
+        recentReportsList.adapter = object : ArrayAdapter<String>(
+            this,
+            android.R.layout.simple_list_item_1,
+            reportsDisplayList
+        ) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                 val textView = super.getView(position, convertView, parent) as TextView
                 textView.textSize = 11.5f
@@ -105,24 +191,35 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val navigateToNearbyTab = {
+        // Tapping the "Recent reports near you / View all >" header opens the Nearby & History tab
+        findViewById<View>(R.id.headerRecentReports).setOnClickListener {
             val intent = Intent(this, ReportActivity::class.java).apply {
                 putExtra("OPEN_NEARBY_TAB", true)
             }
             startActivity(intent)
         }
 
-        // Tapping header opens the Nearby & History tab in ReportActivity
-        findViewById<View>(R.id.headerRecentReports).setOnClickListener {
-            navigateToNearbyTab()
-        }
-
-        // Tapping items also opens the Nearby & History tab
-        recentReportsList.setOnItemClickListener { _, _, _, _ ->
-            navigateToNearbyTab()
+        // Tapping a specific fault report opens TrackActivity with its details
+        recentReportsList.setOnItemClickListener { _, _, position, _ ->
+            val fault = recentFaults[position]
+            val intent = Intent(this, TrackActivity::class.java).apply {
+                putExtra("EXTRA_REF", fault.ref)
+                putExtra("EXTRA_TITLE", fault.title)
+                putExtra("EXTRA_LOCATION", fault.location)
+                putExtra("EXTRA_STATUS", fault.status)
+                putExtra("EXTRA_CATEGORY", fault.category)
+                putExtra("EXTRA_DATE", fault.date)
+                putExtra("EXTRA_DESCRIPTION", fault.description)
+                putExtra("EXTRA_LAT", fault.lat)
+                putExtra("EXTRA_LON", fault.lon)
+            }
+            startActivity(intent)
         }
     }
 
+    /**
+     * Configures the bottom-right radial speed-dial FAB menu.
+     */
     private fun setupSpeedDial() {
         fabMain = findViewById(R.id.fabMain)
         fabReport = findViewById(R.id.fabReport)
@@ -148,13 +245,15 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, MyReportsActivity::class.java))
         }
 
-        // Left FAB opens the dedicated Map Screen
         fabMap.setOnClickListener {
             toggleSpeedDial()
             startActivity(Intent(this, MapActivity::class.java))
         }
     }
 
+    /**
+     * Sets up listeners for the top profile icon and horizontal quick-report category chips.
+     */
     private fun setupHeaderListeners() {
         findViewById<ImageButton>(R.id.btnProfile).setOnClickListener {
             startActivity(Intent(this, ProfileActivity::class.java))
@@ -181,6 +280,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun dpToPx(dp: Float): Float = dp * resources.displayMetrics.density
 
+    /**
+     * Animates the opening and closing of the speed-dial FAB cluster.
+     */
     private fun toggleSpeedDial() {
         isFabMenuOpen = !isFabMenuOpen
         if (isFabMenuOpen) {
