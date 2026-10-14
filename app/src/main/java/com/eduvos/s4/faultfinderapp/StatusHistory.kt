@@ -1,4 +1,4 @@
-package com.eduvos.s4.faultfinderapp.model
+package com.eduvos.s4.faultfinderapp
 
 data class StatusHistory(
 
