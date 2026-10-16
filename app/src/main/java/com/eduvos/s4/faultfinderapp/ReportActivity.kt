@@ -19,6 +19,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import android.net.Uri
+import android.widget.ImageView
+import androidx.appcompat.app.AlertDialog
+import androidx.activity.result.contract.ActivityResultContracts
 
 /**
  * Activity hosting both the Fault Reporting submission form and the Nearby & History
@@ -60,6 +64,16 @@ class ReportActivity : AppCompatActivity() {
     private lateinit var fabDiag: FloatingActionButton
     private lateinit var fabTop: FloatingActionButton
     private var isFabMenuOpen = false
+    private var selectedPhotoUri: Uri? = null
+
+    //for the images
+    private val pickImage = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            showPhotoConfirmation(uri)
+        }
+    }
 
     private val nearbyFaults = listOf(
         NearbyFaultItem(
@@ -152,6 +166,9 @@ class ReportActivity : AppCompatActivity() {
         etLocation = findViewById(R.id.etLocation)
         spinnerCategory = findViewById(R.id.spinnerCategory)
         cbAnonymous = findViewById(R.id.cbAnonymous)
+        findViewById<LinearLayout>(R.id.photoBox).setOnClickListener {
+            pickImage.launch("image/*")
+        }
 
         // Pre-check anonymous box if user enabled "Always Report Anonymously" in Settings
         val settingsPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
@@ -230,6 +247,49 @@ class ReportActivity : AppCompatActivity() {
             }
             startActivity(intent)
         }
+    }
+    fun showPhotoConfirmation(uri: Uri) {
+        // Creates an image preview.
+        val previewImage = ImageView(this).apply {
+            setImageURI(uri)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            //adjustments to the image confirm scale is here
+            val imageWidth = (280 * resources.displayMetrics.density).toInt()
+            val imageHeight = (350 * resources.displayMetrics.density).toInt()
+
+            layoutParams = LinearLayout.LayoutParams(
+                imageWidth,
+                imageHeight
+            )
+        }
+
+        // Asks the user if they want to use this image.
+        AlertDialog.Builder(this)
+            .setTitle("Use this photo?")
+            .setView(previewImage)
+
+            // Save and display image after confirmation.
+            .setPositiveButton("Use Photo") { _, _ ->
+                selectedPhotoUri = uri
+
+                val imageView =
+                    findViewById<ImageView>(R.id.imgFaultPhoto)
+
+                imageView.setImageURI(uri)
+                imageView.scaleType = ImageView.ScaleType.CENTER_CROP
+                imageView.imageTintList = null
+
+                findViewById<TextView>(R.id.tvPhotoLabel).text =
+                    "Photo selected"
+            }
+
+            // lets the user select another image.
+            .setNegativeButton("Choose Another") { _, _ ->
+                pickImage.launch("image/*")
+            }
+
+            .setNeutralButton("Cancel", null)
+            .show()
     }
 
     /**
