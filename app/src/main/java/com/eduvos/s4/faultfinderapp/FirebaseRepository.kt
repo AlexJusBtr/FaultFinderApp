@@ -1,6 +1,8 @@
 package com.eduvos.s4.faultfinderapp
 
 import android.net.Uri
+import com.google.android.play.core.integrity.t
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -37,8 +39,9 @@ class FirebaseRepository {
                     userId = firebaseUser.uid,
                     name = name.trim(),
                     email = email.trim(),
+                    password = password.trim(),  //added password
                     role = "citizen",
-                    createdAt = System.currentTimeMillis()
+                    createdAt = Timestamp.now(), // just changed System.currentTimeMillis() to Timestamp.now()
                 )
                 db.collection("users")
                     .document(firebaseUser.uid)
@@ -137,10 +140,12 @@ class FirebaseRepository {
     }
 
     fun createFault(
+        title: String,
         category: String,
         description: String,
         latitude: Double,
         longitude: Double,
+        isAnonymous: Boolean,      // added isAnonymous to parameter in case checked
         imageUrl: String = "",
         onSuccess: (String) -> Unit,
         onFailure: (Exception) -> Unit
@@ -156,6 +161,11 @@ class FirebaseRepository {
             onFailure(Exception("Please select a category"))
             return
         }
+        //added a title verification
+        if (title.isBlank()) {
+            onFailure(Exception("Please select a title"))
+            return
+        }
 
         if (description.isBlank()) {
             onFailure(Exception("Please enter a description"))
@@ -163,12 +173,15 @@ class FirebaseRepository {
         }
 
         val reference = db.collection("faults").document()
-        val now = System.currentTimeMillis()
+        //just changed System.currentTimeMillis() to Timestamp.now()
+        val now = Timestamp.now()
 
         val fault = Fault(
             id = reference.id,
+            title=title,
             userId = userId,
             category = category,
+            isAnonymous= isAnonymous,
             description = description.trim(),
             latitude = latitude,
             longitude = longitude,
@@ -201,20 +214,25 @@ class FirebaseRepository {
     }
 
     fun createFaultWithImage(
+        title: String,   //noticed title was missing
         category: String,
+        isAnonymous: Boolean,
         description: String,
         latitude: Double,
         longitude: Double,
         imageUri: Uri?,
+
         onSuccess: (String) -> Unit,
         onFailure: (Exception) -> Unit
     ) {
         if (imageUri == null) {
             createFault(
+                title,
                 category,
                 description,
                 latitude,
                 longitude,
+                isAnonymous,
                 "",
                 onSuccess,
                 onFailure
@@ -226,10 +244,12 @@ class FirebaseRepository {
             imageUri,
             onSuccess = { imageUrl ->
                 createFault(
+                    title,
                     category,
                     description,
                     latitude,
                     longitude,
+                    isAnonymous,
                     imageUrl,
                     onSuccess,
                     onFailure

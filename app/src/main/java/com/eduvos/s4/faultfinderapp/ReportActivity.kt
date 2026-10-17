@@ -23,6 +23,8 @@ import android.net.Uri
 import android.widget.ImageView
 import androidx.appcompat.app.AlertDialog
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
+import java.io.File
 
 /**
  * Activity hosting both the Fault Reporting submission form and the Nearby & History
@@ -65,6 +67,7 @@ class ReportActivity : AppCompatActivity() {
     private lateinit var fabTop: FloatingActionButton
     private var isFabMenuOpen = false
     private var selectedPhotoUri: Uri? = null
+    private var takenPhoto: Uri? = null
 
     //for the images
     private val pickImage = registerForActivityResult(
@@ -74,6 +77,42 @@ class ReportActivity : AppCompatActivity() {
             showPhotoConfirmation(uri)
         }
     }
+    private val takePic = registerForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            takenPhoto?.let { uri ->
+                showPhotoConfirmation(uri)
+            }
+        }
+    }
+    private val selectLocation =
+        registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+
+            if (result.resultCode == RESULT_OK) {
+                val data = result.data ?: return@registerForActivityResult
+
+                val latitude = data.getDoubleExtra(
+                    "SELECTED_LAT", Double.NaN
+                )
+                val longitude = data.getDoubleExtra(
+                    "SELECTED_LON", Double.NaN
+                )
+
+                if (!latitude.isNaN() && !longitude.isNaN()) {
+                    etLocation.setText(
+                        String.format(
+                            java.util.Locale.US,
+                            "%.6f, %.6f",
+                            latitude,
+                            longitude
+                        )
+                    )
+                }
+            }
+        }
 
     private val nearbyFaults = listOf(
         NearbyFaultItem(
@@ -153,6 +192,19 @@ class ReportActivity : AppCompatActivity() {
             startActivity(Intent(this, ProfileActivity::class.java))
             finish()
         }
+        //goes to map activity for the user's location
+        findViewById<ImageButton>(R.id.locationBtn)
+            .setOnClickListener {
+
+                val mapIntent = Intent(
+                    this,
+                    MapActivity::class.java
+                ).apply {
+                    putExtra("PICK_LOCATION", true)
+                }
+
+                selectLocation.launch(mapIntent)
+            }
 
         layoutReportForm = findViewById(R.id.layoutReportForm)
         layoutNearbyList = findViewById(R.id.layoutNearbyList)
@@ -167,7 +219,7 @@ class ReportActivity : AppCompatActivity() {
         spinnerCategory = findViewById(R.id.spinnerCategory)
         cbAnonymous = findViewById(R.id.cbAnonymous)
         findViewById<LinearLayout>(R.id.photoBox).setOnClickListener {
-            pickImage.launch("image/*")
+            showPhotoOptions()
         }
 
         // Pre-check anonymous box if user enabled "Always Report Anonymously" in Settings
@@ -285,7 +337,7 @@ class ReportActivity : AppCompatActivity() {
 
             // lets the user select another image.
             .setNegativeButton("Choose Another") { _, _ ->
-                pickImage.launch("image/*")
+                showPhotoOptions()
             }
 
             .setNeutralButton("Cancel", null)
@@ -298,15 +350,68 @@ class ReportActivity : AppCompatActivity() {
     private fun setupSubmission() {
         findViewById<Button>(R.id.submitButton).setOnClickListener {
             val title = etTitle.text.toString().trim()
+            val description = etDescription.text.toString().trim()
+            val category = spinnerCategory.selectedItem.toString()
+            val anonymous = cbAnonymous.isChecked
             val loc = etLocation.text.toString().trim()
+            // Separates latitude and longitude
+            val coordinates = loc.split(",")
 
-            if (title.isEmpty() || loc.isEmpty()) {
-                Toast.makeText(this, "Please enter a title and location", Toast.LENGTH_SHORT).show()
+            if (coordinates.size != 2) {
+                Toast.makeText(
+                    this,
+                    "Please select a valid location from the map",
+                    Toast.LENGTH_SHORT
+                ).show()
                 return@setOnClickListener
             }
 
-            Toast.makeText(this, "Submitting report to Firebase...", Toast.LENGTH_SHORT).show()
-            finish()
+            val lat = coordinates[0].trim().toDoubleOrNull()
+            val lon = coordinates[1].trim().toDoubleOrNull()
+
+            if (lat == null || lon == null) {
+                Toast.makeText(
+                    this,
+                    "Invalid coordinates. Please select your location again",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@setOnClickListener
+            }
+            if (title.length > 50) {
+                etTitle.error = "Title must be 50 characters or fewer"
+                return@setOnClickListener
+            }
+            //send data to the FirebaseRepository
+            val repository = FirebaseRepository()
+            repository.createFaultWithImage(
+                title = title,
+                category = category,
+                description = description,
+                latitude = lat,
+                longitude = lon,
+                isAnonymous = anonymous,
+                imageUri = selectedPhotoUri,
+
+                onSuccess = { reference ->
+                    Toast.makeText(
+                        this,
+                        "Report submitted successfully! Reference: $reference",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    finish()
+                },
+                onFailure = { error ->
+                    Toast.makeText(
+                        this,
+                        "Failed to submit report: ${error.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+
+            )
+
+
         }
     }
 
@@ -363,5 +468,33 @@ class ReportActivity : AppCompatActivity() {
                     .withEndAction { fab.visibility = View.INVISIBLE }.start()
             }
         }
+    }
+    private fun createImgUri(): Uri?{
+        val image = File(applicationContext.filesDir, "camera_photo.png")
+        return FileProvider.getUriForFile(applicationContext,
+            "com.eduvos.s4.faultfinderapp.fileProvider",
+            image)
+    }
+    private fun openCamera() {
+        val uri = createImgUri() ?: return
+
+        takenPhoto = uri
+        takePic.launch(uri)
+    }
+    private fun showPhotoOptions() {
+        val options = arrayOf(
+            "Take a photo",
+            "Choose from gallery"
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle("Add a photo")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> openCamera()
+                    1 -> pickImage.launch("image/*")
+                }
+            }
+            .show()
     }
 }
