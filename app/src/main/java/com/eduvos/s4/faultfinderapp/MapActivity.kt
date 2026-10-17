@@ -20,6 +20,19 @@ import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 
+
+//imports for the selecting location
+import android.Manifest
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import org.osmdroid.events.MapEventsReceiver
+import org.osmdroid.views.overlay.MapEventsOverlay
+
 /**
  * Full-screen interactive OpenStreetMap activity supporting category filtering
  * and deep-linked fault focusing from TrackActivity ("See on Map").
@@ -36,6 +49,25 @@ class MapActivity : AppCompatActivity() {
 
     private lateinit var map: MapView
     private val defaultCenter = GeoPoint(-33.8120, 18.4900)
+    private val requestLocationPermission =
+        registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
+
+            val granted =
+                permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                        permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+
+            if (granted) {
+                centerCurrentLocation()
+            } else {
+                Toast.makeText(
+                    this,
+                    "Location permission is needed to find your location.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
 
     private val allMapFaults = listOf(
         MapFaultPin("#CT-0001", GeoPoint(-33.8267, 18.4912), "Pothole on Main Rd", "Roads", "Pending"),
@@ -79,6 +111,10 @@ class MapActivity : AppCompatActivity() {
         }
 
         setupMap()
+        setupMapTapListener()
+        if (intent.getBooleanExtra("PICK_LOCATION", false)) {
+            requestCurrentLocation()
+        }
         setupCategoryFilters()
         setupFloatingControls()
     }
@@ -121,8 +157,10 @@ class MapActivity : AppCompatActivity() {
         } else {
             map.controller.setZoom(13.0)
             map.controller.setCenter(defaultCenter)
+
         }
     }
+
 
     /**
      * Renders map markers filtered by category (or all markers when categoryFilter is null).
@@ -188,6 +226,141 @@ class MapActivity : AppCompatActivity() {
             startActivity(Intent(this, ReportActivity::class.java))
             finish()
         }
+    }
+
+    //asks for location access permission
+    private fun requestCurrentLocation() {
+        val fineGranted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val coarseGranted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (fineGranted || coarseGranted) {
+            centerCurrentLocation()
+        } else {
+            requestLocationPermission.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    //finds the user's Geopoints
+    private fun centerCurrentLocation() {
+        val locationManager =
+            getSystemService(LOCATION_SERVICE) as LocationManager
+
+        try {
+            val providers = listOf(
+                LocationManager.GPS_PROVIDER,
+                LocationManager.NETWORK_PROVIDER
+            ).filter { provider ->
+                locationManager.isProviderEnabled(provider)
+            }
+
+            if (providers.isEmpty()) {
+                Toast.makeText(
+                    this,
+                    "Please enable your device's location services.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return
+            }
+
+            // Uses a recent known location if available.
+            val lastLocation = providers.firstNotNullOfOrNull { provider ->
+                locationManager.getLastKnownLocation(provider)
+            }
+
+            if (lastLocation != null) {
+                map.controller.setZoom(16.0)
+                map.controller.animateTo(
+                    org.osmdroid.util.GeoPoint(
+                        lastLocation.latitude,
+                        lastLocation.longitude
+                    )
+                )
+            }
+
+            // Request location as well.
+            val listener = object : LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    map.controller.setZoom(16.0)
+                    map.controller.animateTo(
+                        org.osmdroid.util.GeoPoint(
+                            location.latitude,
+                            location.longitude
+                        )
+                    )
+
+                    locationManager.removeUpdates(this)
+                }
+            }
+
+            providers.forEach { provider ->
+                locationManager.requestLocationUpdates(
+                    provider,
+                    1000L,
+                    0f,
+                    listener
+                )
+            }
+
+        } catch (e: SecurityException) {
+            Toast.makeText(
+                this,
+                "Location permission is required.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+
+    private fun setupMapTapListener() {
+        val receiver = object : MapEventsReceiver {
+
+            override fun singleTapConfirmedHelper(
+                point: org.osmdroid.util.GeoPoint
+            ): Boolean {
+
+
+                if (intent.getBooleanExtra("PICK_LOCATION", false)) {
+
+                    // Show the exact coordinates of the point tapped on the map.
+                    Toast.makeText(
+                        this@MapActivity,
+                        "Selected: ${point.latitude}, ${point.longitude}",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    // Send the tapped coordinates back to ReportActivity.
+                    val result = Intent().apply {
+                        putExtra("SELECTED_LAT", point.latitude)
+                        putExtra("SELECTED_LON", point.longitude)
+                    }
+
+                    setResult(RESULT_OK, result)
+                    finish()
+                    return true
+                }
+
+
+                return false
+            }
+
+            override fun longPressHelper(
+                point: org.osmdroid.util.GeoPoint
+            ): Boolean = false
+        }
+
+        map.overlays.add(0, MapEventsOverlay(receiver))
     }
 
     override fun onResume() { super.onResume(); map.onResume() }
