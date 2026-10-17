@@ -11,15 +11,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 
-
-import android.app.AlertDialog
-import android.widget.EditText
-import android.widget.TextView
-import android.widget.Toast
-
 class ProfileActivity : AppCompatActivity() {
-
-    private val firebaseRepository = FirebaseRepository()
 
     private lateinit var fabMain: FloatingActionButton
     private lateinit var fabLeft: FloatingActionButton
@@ -51,20 +43,12 @@ class ProfileActivity : AppCompatActivity() {
             finish()
         }
 
-        // just changed the logout button function  so that we can have the reg/login
-        val btnLogout = findViewById<Button>(R.id.btnLogout)
-
-        updateAuthButton(btnLogout)
-
-        btnLogout.setOnClickListener {
-            if (firebaseRepository.isLoggedIn()) {
-                firebaseRepository.logoutUser()
-                updateAuthButton(btnLogout)
-            } else {
-                showAuthDialog()
-            }
+        findViewById<Button>(R.id.btnLogout).setOnClickListener {
+            startActivity(Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            })
+            finish()
         }
-
 
         setupSpeedDial()
     }
@@ -121,119 +105,4 @@ class ProfileActivity : AppCompatActivity() {
             }
         }
     }
-
-    private fun updateAuthButton(button: Button) {
-        button.text = if (firebaseRepository.isLoggedIn()) {
-            "Log Out"
-        } else {
-            "Log In / Register"
-        }
-    }
-    private fun showAuthDialog() {
-        val dialogView = layoutInflater.inflate(
-            R.layout.dialog_auth,
-            null
-        )
-
-        val title = dialogView.findViewById<TextView>(R.id.authTitle)
-        val nameInput = dialogView.findViewById<EditText>(R.id.authName)
-        val emailInput = dialogView.findViewById<EditText>(R.id.authEmail)
-        val passwordInput = dialogView.findViewById<EditText>(R.id.authPassword)
-        val submitButton = dialogView.findViewById<Button>(R.id.authSubmit)
-        val switchText = dialogView.findViewById<TextView>(R.id.authSwitch)
-
-        var isRegisterMode = false
-
-        val dialog = AlertDialog.Builder(this)
-            .setView(dialogView)
-            .create()
-
-        fun updateDialogMode() {
-            if (isRegisterMode) {
-                title.text = "Register"
-                nameInput.visibility = View.VISIBLE
-                submitButton.text = "Register"
-                switchText.text = "Already have an account? Log In"
-            } else {
-                title.text = "Log In"
-                nameInput.visibility = View.GONE
-                submitButton.text = "Log In"
-                switchText.text = "Don't have an account? Register"
-            }
-        }
-
-        switchText.setOnClickListener {
-            isRegisterMode = !isRegisterMode
-            updateDialogMode()
-        }
-        //this controls the authtication  for regester/login
-        submitButton.setOnClickListener {
-            val email = emailInput.text.toString().trim()
-            val password = passwordInput.text.toString()
-            val name = nameInput.text.toString().trim()
-
-            if (isRegisterMode) {
-                firebaseRepository.registerUser(
-                    name,
-                    email,
-                    password,
-                    onSuccess = {
-                        runOnUiThread {
-                            dialog.dismiss()
-                            updateAuthButton(
-                                findViewById(R.id.btnLogout)
-                            )
-
-                            Toast.makeText(
-                                this,
-                                "Registration successful!",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    },
-                    onFailure = { error ->
-                        runOnUiThread {
-                            Toast.makeText(
-                                this,
-                                error.message ?: "Registration failed.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
-                )
-            } else {
-                firebaseRepository.loginUser(
-                    email,
-                    password,
-                    onSuccess = {
-                        runOnUiThread {
-                            dialog.dismiss()
-                            updateAuthButton(
-                                findViewById(R.id.btnLogout)
-                            )
-
-                            Toast.makeText(
-                                this,
-                                "Login successful!",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    },
-                    onFailure = { error ->
-                        runOnUiThread {
-                            Toast.makeText(
-                                this,
-                                error.message ?: "Login failed.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
-                )
-            }
-        }
-
-        updateDialogMode()
-        dialog.show()
-    }
-
 }
