@@ -485,3 +485,33 @@ fun addFaultComment(
         }
         .addOnFailureListener(onFailure)
 }
+
+fun getFaultComments(
+    faultId: String,
+    onSuccess: (List<FaultComment>) -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    if (faultId.isBlank()) {
+        onFailure(Exception("Fault ID is required"))
+        return
+    }
+
+    db.collection("faults")
+        .document(faultId)
+        .collection("comments")
+        .orderBy(
+            "createdAt",
+            Query.Direction.ASCENDING
+        )
+        .get()
+        .addOnSuccessListener { result ->
+
+            val comments =
+                result.toObjects(
+                    FaultComment::class.java
+                )
+
+            onSuccess(comments)
+        }
+        .addOnFailureListener(onFailure)
+}
