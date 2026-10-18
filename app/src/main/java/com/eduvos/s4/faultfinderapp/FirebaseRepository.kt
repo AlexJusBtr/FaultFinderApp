@@ -252,3 +252,189 @@ class FirebaseRepository {
             .addOnFailureListener(onFailure)
     }
 }
+
+fun getAllFaults(
+        onSuccess: (List<Fault>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        db.collection("faults")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .get()
+            .addOnSuccessListener { result ->
+                onSuccess(result.toObjects(Fault::class.java))
+            }
+            .addOnFailureListener(onFailure)
+    }
+
+    fun getMyFaults(
+        onSuccess: (List<Fault>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val userId = auth.currentUser?.uid
+
+        if (userId == null) {
+            onFailure(Exception("No user is logged in"))
+            return
+        }
+
+        db.collection("faults")
+            .whereEqualTo("userId", userId)
+            .get()
+            .addOnSuccessListener { result ->
+                val faults = result
+                    .toObjects(Fault::class.java)
+                    .sortedByDescending { it.createdAt }
+
+                onSuccess(faults)
+            }
+            .addOnFailureListener(onFailure)
+    }
+
+    fun getFaultById(
+        faultId: String,
+        onSuccess: (Fault) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        db.collection("faults")
+            .document(faultId)
+            .get()
+            .addOnSuccessListener { document ->
+                val fault = document.toObject(Fault::class.java)
+
+                if (fault != null) {
+                    onSuccess(fault)
+                } else {
+                    onFailure(Exception("Fault report not found"))
+                }
+            }
+            .addOnFailureListener(onFailure)
+    }
+
+    fun listenToFault(
+        faultId: String,
+        onChange: (Fault) -> Unit,
+        onFailure: (Exception) -> Unit
+    ): ListenerRegistration {
+
+        return db.collection("faults")
+            .document(faultId)
+            .addSnapshotListener { snapshot, error ->
+
+                if (error != null) {
+                    onFailure(error)
+                    return@addSnapshotListener
+                }
+
+                val fault = snapshot?.toObject(Fault::class.java)
+
+                if (fault != null) {
+                    onChange(fault)
+                }
+            }
+    }
+
+    fun getStatusHistory(
+        faultId: String,
+        onSuccess: (List<StatusHistory>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        db.collection("faults")
+            .document(faultId)
+            .collection("statusHistory")
+            .orderBy("timestamp", Query.Direction.ASCENDING)
+            .get()
+            .addOnSuccessListener { result ->
+                onSuccess(
+                    result.toObjects(StatusHistory::class.java)
+                )
+            }
+            .addOnFailureListener(onFailure)
+    }
+
+    fun updateFaultStatus(
+        faultId: String,
+        newStatus: String,
+        comment: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val userId = auth.currentUser?.uid
+
+        if (userId == null) {
+            onFailure(Exception("No user is logged in"))
+            return
+        }
+
+        val validStatuses = listOf(
+            "Submitted",
+            "Validated",
+            "Assigned",
+            "In Progress",
+            "Resolved"
+        )
+
+        if (newStatus !in validStatuses) {
+            onFailure(Exception("Invalid status"))
+            return
+        }
+
+        // Security rules must also enforce that only staff can do this.
+        val reference = db.collection("faults").document(faultId)
+        val now = System.currentTimeMillis()
+
+        reference.update(
+            mapOf(
+                "status" to newStatus,
+                "updatedAt" to now
+            )
+        )
+            .addOnSuccessListener {
+                val history = StatusHistory(
+                    status = newStatus,
+                    changedBy = userId,
+                    comment = comment,
+                    timestamp = now
+                )
+
+                reference.collection("statusHistory")
+                    .add(history)
+                    .addOnSuccessListener {
+                        onSuccess()
+                    }
+                    .addOnFailureListener(onFailure)
+            }
+            .addOnFailureListener(onFailure)
+    }
+
+    fun updateFaultPriority(
+        faultId: String,
+        priority: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val validPriorities = listOf(
+            "Low",
+            "Medium",
+            "High",
+            "Critical"
+        )
+
+        if (priority !in validPriorities) {
+            onFailure(Exception("Invalid priority"))
+            return
+        }
+
+        db.collection("faults")
+            .document(faultId)
+            .update(
+                mapOf(
+                    "priority" to priority,
+                    "updatedAt" to System.currentTimeMillis()
+                )
+            )
+            .addOnSuccessListener {
+                onSuccess()
+            }
+            .addOnFailureListener(onFailure)
+    }
+}
