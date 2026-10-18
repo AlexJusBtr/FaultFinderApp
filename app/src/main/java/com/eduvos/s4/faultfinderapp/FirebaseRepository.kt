@@ -12,7 +12,7 @@ class FirebaseRepository {
 
     private val auth = FirebaseAuth.getInstance()
     private val db = FirebaseFirestore.getInstance()
-    private val storage = FirebaseStorage.getInstance() // Fixed typo: 'cal' to 'val'
+    private val storage = FirebaseStorage.getInstance()
 
     fun registerUser(
         name: String,
@@ -28,12 +28,14 @@ class FirebaseRepository {
 
         auth.createUserWithEmailAndPassword(email.trim(), password)
             .addOnSuccessListener {
+
                 val firebaseUser = auth.currentUser
 
                 if (firebaseUser == null) {
                     onFailure(Exception("User account could not be created"))
-                    return@addOnSuccessListener // Fixed typo: 'onSuccessListner'
+                    return@addOnSuccessListener
                 }
+
                 val user = User(
                     userId = firebaseUser.uid,
                     name = name.trim(),
@@ -41,6 +43,7 @@ class FirebaseRepository {
                     role = "citizen",
                     createdAt = System.currentTimeMillis()
                 )
+
                 db.collection("users")
                     .document(firebaseUser.uid)
                     .set(user)
@@ -62,6 +65,7 @@ class FirebaseRepository {
             onFailure(Exception("Please enter your email and password"))
             return
         }
+
         auth.signInWithEmailAndPassword(email.trim(), password)
             .addOnSuccessListener {
                 onSuccess()
@@ -82,7 +86,7 @@ class FirebaseRepository {
     }
 
     fun getCurrentUser(
-        onSuccess: (User) -> Unit, // Fixed typo: 'onSucces' to 'onSuccess'
+        onSuccess: (User) -> Unit,
         onFailure: (Exception) -> Unit
     ) {
         val userId = auth.currentUser?.uid
@@ -91,11 +95,13 @@ class FirebaseRepository {
             onFailure(Exception("No user is logged in"))
             return
         }
+
         db.collection("users")
             .document(userId)
             .get()
             .addOnSuccessListener { document ->
-                val user = document.toObject(User::class.java) // Fixed typo: 'user::class.java' to 'User::class.java'
+
+                val user = document.toObject(User::class.java)
 
                 if (user != null) {
                     onSuccess(user)
@@ -117,6 +123,7 @@ class FirebaseRepository {
             onFailure(Exception("You must be logged in"))
             return
         }
+
         val filename = "${UUID.randomUUID()}.jpg"
 
         val imageRef = storage.reference
@@ -126,9 +133,12 @@ class FirebaseRepository {
 
         imageRef.putFile(imageUri)
             .continueWithTask { task ->
+
                 if (!task.isSuccessful) {
-                    throw task.exception ?: Exception("Image upload failed")
+                    throw task.exception
+                        ?: Exception("Image upload failed")
                 }
+
                 imageRef.downloadUrl
             }
             .addOnSuccessListener { uri ->
@@ -182,6 +192,7 @@ class FirebaseRepository {
 
         reference.set(fault)
             .addOnSuccessListener {
+
                 val history = StatusHistory(
                     status = "Submitted",
                     changedBy = userId,
@@ -194,9 +205,7 @@ class FirebaseRepository {
                     .addOnSuccessListener {
                         onSuccess(reference.id)
                     }
-                    .addOnFailureListener {
-                        onSuccess(reference.id)
-                    }
+                    .addOnFailureListener(onFailure)
             }
             .addOnFailureListener(onFailure)
     }
@@ -211,6 +220,7 @@ class FirebaseRepository {
         onFailure: (Exception) -> Unit
     ) {
         if (imageUri == null) {
+
             createFault(
                 category,
                 description,
@@ -220,12 +230,14 @@ class FirebaseRepository {
                 onSuccess,
                 onFailure
             )
+
             return
         }
 
         uploadFaultImage(
             imageUri,
             onSuccess = { imageUrl ->
+
                 createFault(
                     category,
                     description,
@@ -245,13 +257,19 @@ class FirebaseRepository {
         onFailure: (Exception) -> Unit
     ) {
         db.collection("faults")
-            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .orderBy(
+                "createdAt",
+                Query.Direction.DESCENDING
+            )
             .get()
             .addOnSuccessListener { result ->
-                onSuccess(result.toObjects(Fault::class.java))
+
+                onSuccess(
+                    result.toObjects(Fault::class.java)
+                )
             }
             .addOnFailureListener(onFailure)
-}
+    }
 
     fun getMyFaults(
         onSuccess: (List<Fault>) -> Unit,
@@ -268,35 +286,42 @@ class FirebaseRepository {
             .whereEqualTo("userId", userId)
             .get()
             .addOnSuccessListener { result ->
+
                 val faults = result
                     .toObjects(Fault::class.java)
-                    .sortedByDescending { it.createdAt }
+                    .sortedByDescending {
+                        it.createdAt
+                    }
 
                 onSuccess(faults)
             }
             .addOnFailureListener(onFailure)
     }
 
-   fun getFaultById(
-    faultId: String,
-    onSuccess: (Fault) -> Unit,
-    onFailure: (Exception) -> Unit
-) {
-    if (faultId.isBlank()) {
-        onFailure(Exception("Fault ID is required"))
-        return
-    }
+    fun getFaultById(
+        faultId: String,
+        onSuccess: (Fault) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        if (faultId.isBlank()) {
+            onFailure(Exception("Fault ID is required"))
+            return
+        }
 
-    db.collection("faults")
+        db.collection("faults")
             .document(faultId)
             .get()
             .addOnSuccessListener { document ->
-                val fault = document.toObject(Fault::class.java)
+
+                val fault =
+                    document.toObject(Fault::class.java)
 
                 if (fault != null) {
                     onSuccess(fault)
                 } else {
-                    onFailure(Exception("Fault report not found"))
+                    onFailure(
+                        Exception("Fault report not found")
+                    )
                 }
             }
             .addOnFailureListener(onFailure)
@@ -317,7 +342,8 @@ class FirebaseRepository {
                     return@addSnapshotListener
                 }
 
-                val fault = snapshot?.toObject(Fault::class.java)
+                val fault =
+                    snapshot?.toObject(Fault::class.java)
 
                 if (fault != null) {
                     onChange(fault)
@@ -333,11 +359,17 @@ class FirebaseRepository {
         db.collection("faults")
             .document(faultId)
             .collection("statusHistory")
-            .orderBy("timestamp", Query.Direction.ASCENDING)
+            .orderBy(
+                "timestamp",
+                Query.Direction.ASCENDING
+            )
             .get()
             .addOnSuccessListener { result ->
+
                 onSuccess(
-                    result.toObjects(StatusHistory::class.java)
+                    result.toObjects(
+                        StatusHistory::class.java
+                    )
                 )
             }
             .addOnFailureListener(onFailure)
@@ -357,6 +389,11 @@ class FirebaseRepository {
             return
         }
 
+        if (faultId.isBlank()) {
+            onFailure(Exception("Fault ID is required"))
+            return
+        }
+
         val validStatuses = listOf(
             "Submitted",
             "Validated",
@@ -370,8 +407,10 @@ class FirebaseRepository {
             return
         }
 
-        // Security rules must also enforce that only staff can do this.
-        val reference = db.collection("faults").document(faultId)
+        val reference =
+            db.collection("faults")
+                .document(faultId)
+
         val now = System.currentTimeMillis()
 
         reference.update(
@@ -381,6 +420,7 @@ class FirebaseRepository {
             )
         )
             .addOnSuccessListener {
+
                 val history = StatusHistory(
                     status = newStatus,
                     changedBy = userId,
@@ -388,7 +428,8 @@ class FirebaseRepository {
                     timestamp = now
                 )
 
-                reference.collection("statusHistory")
+                reference
+                    .collection("statusHistory")
                     .add(history)
                     .addOnSuccessListener {
                         onSuccess()
@@ -404,6 +445,18 @@ class FirebaseRepository {
         onSuccess: () -> Unit,
         onFailure: (Exception) -> Unit
     ) {
+        val userId = auth.currentUser?.uid
+
+        if (userId == null) {
+            onFailure(Exception("No user is logged in"))
+            return
+        }
+
+        if (faultId.isBlank()) {
+            onFailure(Exception("Fault ID is required"))
+            return
+        }
+
         val validPriorities = listOf(
             "Low",
             "Medium",
@@ -421,7 +474,8 @@ class FirebaseRepository {
             .update(
                 mapOf(
                     "priority" to priority,
-                    "updatedAt" to System.currentTimeMillis()
+                    "updatedAt" to
+                        System.currentTimeMillis()
                 )
             )
             .addOnSuccessListener {
@@ -429,118 +483,274 @@ class FirebaseRepository {
             }
             .addOnFailureListener(onFailure)
     }
-}
 
-fun addFaultComment(
-    faultId: String,
-    message: String,
-    onSuccess: () -> Unit,
-    onFailure: (Exception) -> Unit
-) {
-    val userId = auth.currentUser?.uid
+    fun addFaultComment(
+        faultId: String,
+        message: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val userId = auth.currentUser?.uid
 
-    if (userId == null) {
-        onFailure(Exception("You must be logged in to add a comment"))
-        return
-    }
-
-    if (faultId.isBlank()) {
-        onFailure(Exception("Fault ID is required"))
-        return
-    }
-
-    if (message.isBlank()) {
-        onFailure(Exception("Comment cannot be empty"))
-        return
-    }
-
-    db.collection("users")
-        .document(userId)
-        .get()
-        .addOnSuccessListener { userDocument ->
-
-            val userName =
-                userDocument.getString("name") ?: "User"
-
-            val commentReference = db
-                .collection("faults")
-                .document(faultId)
-                .collection("comments")
-                .document()
-
-            val comment = FaultComment(
-                id = commentReference.id,
-                userId = userId,
-                userName = userName,
-                message = message.trim(),
-                createdAt = System.currentTimeMillis()
+        if (userId == null) {
+            onFailure(
+                Exception(
+                    "You must be logged in to add a comment"
+                )
             )
-
-            commentReference
-                .set(comment)
-                .addOnSuccessListener {
-                    onSuccess()
-                }
-                .addOnFailureListener(onFailure)
+            return
         }
-        .addOnFailureListener(onFailure)
-}
 
-fun getFaultComments(
-    faultId: String,
-    onSuccess: (List<FaultComment>) -> Unit,
-    onFailure: (Exception) -> Unit
-) {
-    if (faultId.isBlank()) {
-        onFailure(Exception("Fault ID is required"))
-        return
-    }
+        if (faultId.isBlank()) {
+            onFailure(Exception("Fault ID is required"))
+            return
+        }
 
-    db.collection("faults")
-        .document(faultId)
-        .collection("comments")
-        .orderBy(
-            "createdAt",
-            Query.Direction.ASCENDING
-        )
-        .get()
-        .addOnSuccessListener { result ->
+        if (message.isBlank()) {
+            onFailure(Exception("Comment cannot be empty"))
+            return
+        }
 
-            val comments =
-                result.toObjects(
-                    FaultComment::class.java
+        db.collection("users")
+            .document(userId)
+            .get()
+            .addOnSuccessListener { userDocument ->
+
+                val userName =
+                    userDocument.getString("name")
+                        ?: "User"
+
+                val commentReference =
+                    db.collection("faults")
+                        .document(faultId)
+                        .collection("comments")
+                        .document()
+
+                val comment = FaultComment(
+                    id = commentReference.id,
+                    userId = userId,
+                    userName = userName,
+                    message = message.trim(),
+                    createdAt =
+                        System.currentTimeMillis()
                 )
 
-            onSuccess(comments)
-        }
-        .addOnFailureListener(onFailure)
-}
-
-fun listenToFaultComments(
-    faultId: String,
-    onChange: (List<FaultComment>) -> Unit,
-    onFailure: (Exception) -> Unit
-): ListenerRegistration {
-
-    return db.collection("faults")
-        .document(faultId)
-        .collection("comments")
-        .orderBy(
-            "createdAt",
-            Query.Direction.ASCENDING
-        )
-        .addSnapshotListener { snapshot, error ->
-
-            if (error != null) {
-                onFailure(error)
-                return@addSnapshotListener
+                commentReference
+                    .set(comment)
+                    .addOnSuccessListener {
+                        onSuccess()
+                    }
+                    .addOnFailureListener(onFailure)
             }
+            .addOnFailureListener(onFailure)
+    }
 
-            val comments =
-                snapshot?.toObjects(
-                    FaultComment::class.java
-                ) ?: emptyList()
-
-            onChange(comments)
+    fun getFaultComments(
+        faultId: String,
+        onSuccess: (List<FaultComment>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        if (faultId.isBlank()) {
+            onFailure(Exception("Fault ID is required"))
+            return
         }
+
+        db.collection("faults")
+            .document(faultId)
+            .collection("comments")
+            .orderBy(
+                "createdAt",
+                Query.Direction.ASCENDING
+            )
+            .get()
+            .addOnSuccessListener { result ->
+
+                val comments =
+                    result.toObjects(
+                        FaultComment::class.java
+                    )
+
+                onSuccess(comments)
+            }
+            .addOnFailureListener(onFailure)
+    }
+
+    fun listenToFaultComments(
+        faultId: String,
+        onChange: (List<FaultComment>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ): ListenerRegistration {
+
+        return db.collection("faults")
+            .document(faultId)
+            .collection("comments")
+            .orderBy(
+                "createdAt",
+                Query.Direction.ASCENDING
+            )
+            .addSnapshotListener { snapshot, error ->
+
+                if (error != null) {
+                    onFailure(error)
+                    return@addSnapshotListener
+                }
+
+                val comments =
+                    snapshot?.toObjects(
+                        FaultComment::class.java
+                    ) ?: emptyList()
+
+                onChange(comments)
+            }
+    }
+
+    fun isMunicipalUser(
+        onSuccess: (Boolean) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val userId = auth.currentUser?.uid
+
+        if (userId == null) {
+            onFailure(Exception("No user is logged in"))
+            return
+        }
+
+        db.collection("users")
+            .document(userId)
+            .get()
+            .addOnSuccessListener { document ->
+
+                val role =
+                    document.getString("role")
+                        ?: "citizen"
+
+                onSuccess(
+                    role.equals(
+                        "municipal",
+                        ignoreCase = true
+                    )
+                )
+            }
+            .addOnFailureListener(onFailure)
+    }
+
+    fun assignFaultToDepartment(
+        faultId: String,
+        department: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val userId = auth.currentUser?.uid
+
+        if (userId == null) {
+            onFailure(Exception("No user is logged in"))
+            return
+        }
+
+        if (faultId.isBlank()) {
+            onFailure(Exception("Fault ID is required"))
+            return
+        }
+
+        if (department.isBlank()) {
+            onFailure(Exception("Department is required"))
+            return
+        }
+
+        val reference =
+            db.collection("faults")
+                .document(faultId)
+
+        val now = System.currentTimeMillis()
+
+        reference.update(
+            mapOf(
+                "department" to department.trim(),
+                "status" to "Assigned",
+                "updatedAt" to now
+            )
+        )
+            .addOnSuccessListener {
+
+                val history = StatusHistory(
+                    status = "Assigned",
+                    changedBy = userId,
+                    timestamp = now,
+                    comment =
+                        "Assigned to ${department.trim()}"
+                )
+
+                reference
+                    .collection("statusHistory")
+                    .add(history)
+                    .addOnSuccessListener {
+                        onSuccess()
+                    }
+                    .addOnFailureListener(onFailure)
+            }
+            .addOnFailureListener(onFailure)
+    }
+
+    fun getFaultsByStatus(
+        status: String,
+        onSuccess: (List<Fault>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val validStatuses = listOf(
+            "Submitted",
+            "Validated",
+            "Assigned",
+            "In Progress",
+            "Resolved"
+        )
+
+        if (status !in validStatuses) {
+            onFailure(Exception("Invalid fault status"))
+            return
+        }
+
+        db.collection("faults")
+            .whereEqualTo("status", status)
+            .get()
+            .addOnSuccessListener { result ->
+
+                val faults =
+                    result.toObjects(Fault::class.java)
+                        .sortedByDescending {
+                            it.createdAt
+                        }
+
+                onSuccess(faults)
+            }
+            .addOnFailureListener(onFailure)
+    }
+
+    fun getFaultsByDepartment(
+        department: String,
+        onSuccess: (List<Fault>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        if (department.isBlank()) {
+            onFailure(Exception("Department is required"))
+            return
+        }
+
+        db.collection("faults")
+            .whereEqualTo(
+                "department",
+                department
+            )
+            .get()
+            .addOnSuccessListener { result ->
+
+                val faults =
+                    result.toObjects(Fault::class.java)
+                        .sortedByDescending {
+                            it.createdAt
+                        }
+
+                onSuccess(faults)
+            }
+            .addOnFailureListener(onFailure)
+    }
 }
