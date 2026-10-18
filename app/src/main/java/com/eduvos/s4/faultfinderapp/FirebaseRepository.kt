@@ -515,3 +515,32 @@ fun getFaultComments(
         }
         .addOnFailureListener(onFailure)
 }
+
+fun listenToFaultComments(
+    faultId: String,
+    onChange: (List<FaultComment>) -> Unit,
+    onFailure: (Exception) -> Unit
+): ListenerRegistration {
+
+    return db.collection("faults")
+        .document(faultId)
+        .collection("comments")
+        .orderBy(
+            "createdAt",
+            Query.Direction.ASCENDING
+        )
+        .addSnapshotListener { snapshot, error ->
+
+            if (error != null) {
+                onFailure(error)
+                return@addSnapshotListener
+            }
+
+            val comments =
+                snapshot?.toObjects(
+                    FaultComment::class.java
+                ) ?: emptyList()
+
+            onChange(comments)
+        }
+}
