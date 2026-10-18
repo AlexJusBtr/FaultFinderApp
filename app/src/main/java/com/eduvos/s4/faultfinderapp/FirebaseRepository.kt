@@ -430,3 +430,58 @@ class FirebaseRepository {
             .addOnFailureListener(onFailure)
     }
 }
+
+fun addFaultComment(
+    faultId: String,
+    message: String,
+    onSuccess: () -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    val userId = auth.currentUser?.uid
+
+    if (userId == null) {
+        onFailure(Exception("You must be logged in to add a comment"))
+        return
+    }
+
+    if (faultId.isBlank()) {
+        onFailure(Exception("Fault ID is required"))
+        return
+    }
+
+    if (message.isBlank()) {
+        onFailure(Exception("Comment cannot be empty"))
+        return
+    }
+
+    db.collection("users")
+        .document(userId)
+        .get()
+        .addOnSuccessListener { userDocument ->
+
+            val userName =
+                userDocument.getString("name") ?: "User"
+
+            val commentReference = db
+                .collection("faults")
+                .document(faultId)
+                .collection("comments")
+                .document()
+
+            val comment = FaultComment(
+                id = commentReference.id,
+                userId = userId,
+                userName = userName,
+                message = message.trim(),
+                createdAt = System.currentTimeMillis()
+            )
+
+            commentReference
+                .set(comment)
+                .addOnSuccessListener {
+                    onSuccess()
+                }
+                .addOnFailureListener(onFailure)
+        }
+        .addOnFailureListener(onFailure)
+}
