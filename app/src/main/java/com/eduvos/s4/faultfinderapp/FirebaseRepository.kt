@@ -3,6 +3,7 @@ package com.eduvos.s4.faultfinderapp
 import android.net.Uri
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.storage.FirebaseStorage
 import java.util.UUID
@@ -250,21 +251,7 @@ class FirebaseRepository {
                 onSuccess(result.toObjects(Fault::class.java))
             }
             .addOnFailureListener(onFailure)
-    }
 }
-
-fun getAllFaults(
-        onSuccess: (List<Fault>) -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        db.collection("faults")
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            .get()
-            .addOnSuccessListener { result ->
-                onSuccess(result.toObjects(Fault::class.java))
-            }
-            .addOnFailureListener(onFailure)
-    }
 
     fun getMyFaults(
         onSuccess: (List<Fault>) -> Unit,
@@ -290,12 +277,17 @@ fun getAllFaults(
             .addOnFailureListener(onFailure)
     }
 
-    fun getFaultById(
-        faultId: String,
-        onSuccess: (Fault) -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        db.collection("faults")
+   fun getFaultById(
+    faultId: String,
+    onSuccess: (Fault) -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    if (faultId.isBlank()) {
+        onFailure(Exception("Fault ID is required"))
+        return
+    }
+
+    db.collection("faults")
             .document(faultId)
             .get()
             .addOnSuccessListener { document ->
@@ -354,7 +346,7 @@ fun getAllFaults(
     fun updateFaultStatus(
         faultId: String,
         newStatus: String,
-        comment: String,
+        comment: String = "",
         onSuccess: () -> Unit,
         onFailure: (Exception) -> Unit
     ) {
@@ -374,7 +366,7 @@ fun getAllFaults(
         )
 
         if (newStatus !in validStatuses) {
-            onFailure(Exception("Invalid status"))
+            onFailure(Exception("Invalid fault status"))
             return
         }
 
