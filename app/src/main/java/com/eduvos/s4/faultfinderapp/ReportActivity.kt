@@ -65,6 +65,7 @@ class ReportActivity : AppCompatActivity() {
     private lateinit var fabTop: FloatingActionButton
     private var isFabMenuOpen = false
     private var selectedPhotoUri: Uri? = null
+    private val repository = FirebaseRepository()
 
     //for the images
     private val pickImage = registerForActivityResult(
@@ -297,6 +298,11 @@ class ReportActivity : AppCompatActivity() {
      */
     private fun setupSubmission() {
         findViewById<Button>(R.id.submitButton).setOnClickListener {
+            if (!repository.isLoggedIn()) {
+                Toast.makeText(this, "Please log in or sign up to submit a fault report", Toast.LENGTH_LONG).show()
+                startActivity(Intent(this, AuthActivity::class.java))
+                return@setOnClickListener
+            }
             val title = etTitle.text.toString().trim()
             val loc = etLocation.text.toString().trim()
 

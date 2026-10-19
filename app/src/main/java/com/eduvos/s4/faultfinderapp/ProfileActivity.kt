@@ -5,6 +5,11 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.ImageButton
+import android.widget.TextView
+import android.widget.Toast
+import android.content.res.ColorStateList
+import android.graphics.Color
+import com.google.android.material.button.MaterialButton
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -18,6 +23,7 @@ class ProfileActivity : AppCompatActivity() {
     private lateinit var fabDiag: FloatingActionButton
     private lateinit var fabTop: FloatingActionButton
     private var isFabMenuOpen = false
+    private val repository = FirebaseRepository()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,12 +49,7 @@ class ProfileActivity : AppCompatActivity() {
             finish()
         }
 
-        findViewById<Button>(R.id.btnLogout).setOnClickListener {
-            startActivity(Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            })
-            finish()
-        }
+        refreshProfileState()
 
         setupSpeedDial()
     }
@@ -102,6 +103,55 @@ class ProfileActivity : AppCompatActivity() {
             listOf(fabLeft, fabDiag, fabTop).forEach { fab ->
                 fab.animate().translationX(0f).translationY(0f).alpha(0f).scaleX(0f).scaleY(0f).setDuration(200)
                     .withEndAction { fab.visibility = View.INVISIBLE }.start()
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshProfileState()
+    }
+
+    private fun refreshProfileState() {
+        val tvName = findViewById<TextView>(R.id.tvProfileName)
+        val tvEmail = findViewById<TextView>(R.id.tvProfileEmail)
+        val btnAuthAction = findViewById<MaterialButton>(R.id.btnLogout)
+
+        if (repository.isLoggedIn()) {
+            repository.getCurrentUser(
+                onSuccess = { user ->
+                    tvName.text = user.name.ifBlank { "Citizen User" }
+                    tvEmail.text = user.email
+                },
+                onFailure = {
+                    tvName.text = "Citizen User"
+                    tvEmail.text = "Logged in"
+                }
+            )
+
+            btnAuthAction.text = "Log Out"
+            btnAuthAction.setTextColor(Color.parseColor("#EF4444"))
+            btnAuthAction.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
+            btnAuthAction.iconTint = ColorStateList.valueOf(Color.parseColor("#EF4444"))
+            btnAuthAction.strokeColor = ColorStateList.valueOf(Color.parseColor("#FECACA"))
+
+            btnAuthAction.setOnClickListener {
+                repository.logoutUser()
+                Toast.makeText(this, "Logged out", Toast.LENGTH_SHORT).show()
+                refreshProfileState()
+            }
+        } else {
+            tvName.text = "Guest Citizen"
+            tvEmail.text = "Not logged in"
+
+            btnAuthAction.text = "Log In / Sign Up"
+            btnAuthAction.setTextColor(Color.WHITE)
+            btnAuthAction.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#004225"))
+            btnAuthAction.iconTint = ColorStateList.valueOf(Color.WHITE)
+            btnAuthAction.strokeColor = ColorStateList.valueOf(Color.parseColor("#004225"))
+
+            btnAuthAction.setOnClickListener {
+                startActivity(Intent(this, AuthActivity::class.java))
             }
         }
     }
