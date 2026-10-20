@@ -377,10 +377,10 @@ class ReportActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            val lat = coordinates[0].trim().toDoubleOrNull()
-            val lon = coordinates[1].trim().toDoubleOrNull()
+val latitude = coordinates[0].trim().toDoubleOrNull()
+val longitude = coordinates[1].trim().toDoubleOrNull()
 
-            if (lat == null || lon == null) {
+if (latitude == null || longitude == null) {
                 Toast.makeText(
                     this,
                     "Invalid coordinates. Please select your location again",
@@ -397,11 +397,9 @@ repository.checkForDuplicatesBeforeSubmission(
     latitude = latitude,
     longitude = longitude,
 
-    onDuplicatesFound = { duplicates ->
+    onDuplicatesFound = {
 
         runOnUiThread {
-
-            val closestDuplicate = duplicates.first()
 
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("Possible Duplicate Report")
@@ -450,10 +448,44 @@ repository.checkForDuplicatesBeforeSubmission(
         }
     }
 )
+        } // closes setOnClickListener
+    } 
+    private fun submitFault(
+        category: String,
+        description: String,
+        latitude: Double,
+        longitude: Double
+    ) {
+        repository.createFaultWithImage(
+            category = category,
+            description = description,
+            latitude = latitude,
+            longitude = longitude,
+            imageUri = selectedPhotoUri,
 
-        }
+            onSuccess = { reference ->
+                runOnUiThread {
+                    Toast.makeText(
+                        this,
+                        "Fault reported successfully. Reference: $reference",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    finish()
+                }
+            },
+
+            onFailure = { exception ->
+                runOnUiThread {
+                    Toast.makeText(
+                        this,
+                        "Failed to submit fault: ${exception.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        )
     }
-
     private fun setupSpeedDial() {
         fabMain = findViewById(R.id.fabMain)
         fabLeft = findViewById(R.id.fabLeft)
