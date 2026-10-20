@@ -634,7 +634,25 @@ class FirebaseRepository {
             }
             .addOnFailureListener(onFailure)
     }
+fun validateFault(
+    faultId: String,
+    comment: String = "Fault validated",
+    onSuccess: () -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    if (faultId.isBlank()) {
+        onFailure(Exception("Fault ID is required"))
+        return
+    }
 
+    updateFaultStatus(
+        faultId = faultId,
+        newStatus = "Validated",
+        comment = comment,
+        onSuccess = onSuccess,
+        onFailure = onFailure
+    )
+}
     fun assignFaultToDepartment(
         faultId: String,
         department: String,
@@ -691,6 +709,66 @@ class FirebaseRepository {
             }
             .addOnFailureListener(onFailure)
     }
+fun startFaultWork(
+    faultId: String,
+    comment: String = "Work started",
+    onSuccess: () -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    if (faultId.isBlank()) {
+        onFailure(Exception("Fault ID is required"))
+        return
+    }
+
+    updateFaultStatus(
+        faultId = faultId,
+        newStatus = "In Progress",
+        comment = comment,
+        onSuccess = onSuccess,
+        onFailure = onFailure
+    )
+}
+fun resolveFault(
+    faultId: String,
+    comment: String = "Fault resolved",
+    onSuccess: () -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    if (faultId.isBlank()) {
+        onFailure(Exception("Fault ID is required"))
+        return
+    }
+
+    updateFaultStatus(
+        faultId = faultId,
+        newStatus = "Resolved",
+        comment = comment,
+        onSuccess = onSuccess,
+        onFailure = onFailure
+    )
+}
+fun getActiveFaults(
+    onSuccess: (List<Fault>) -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    db.collection("faults")
+        .get()
+        .addOnSuccessListener { result ->
+
+            val faults = result
+                .toObjects(Fault::class.java)
+                .filter {
+                    it.status != "Resolved" &&
+                    !it.isDuplicate
+                }
+                .sortedByDescending {
+                    it.createdAt
+                }
+
+            onSuccess(faults)
+        }
+        .addOnFailureListener(onFailure)
+}
 
     fun getFaultsByStatus(
         status: String,
