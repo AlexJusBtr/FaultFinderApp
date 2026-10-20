@@ -1,6 +1,7 @@
 package com.eduvos.s4.faultfinderapp
 
 import android.net.Uri
+import android.location.Location
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -753,4 +754,95 @@ class FirebaseRepository {
             }
             .addOnFailureListener(onFailure)
     }
+
+fun findPotentialDuplicates(
+    category: String,
+    latitude: Double,
+    longitude: Double,
+    distanceThresholdMetres: Float = 100f,
+    onSuccess: (List<Fault>) -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    if (category.isBlank()) {
+        onFailure(Exception("Fault category is required"))
+        return
+    }
+
+    if (distanceThresholdMetres <= 0) {
+        onFailure(Exception("Distance threshold must be greater than zero"))
+        return
+    }
+
+    db.collection("faults")
+        .whereEqualTo("category", category)
+        .get()
+        .addOnSuccessListener { result ->
+
+            val possibleDuplicates = result
+                .toObjects(Fault::class.java)
+                .filter { existingFault ->
+
+                    // Resolved faults should not be considered duplicates
+                    if (existingFault.status == "Resolved") {
+                        false
+                    } else {
+
+                        val distance = FloatArray(1)
+
+                        Location.distanceBetween(
+                            latitude,
+                            longitude,
+                            existingFault.latitude,
+                            existingFault.longitude,
+                            distance
+                        )
+
+                        distance[0] <= distanceThresholdMetres
+                    }
+                }
+                .sortedBy { existingFault ->
+
+                    val distance = FloatArray(1)
+
+                    Location.distanceBetween(
+                        latitude,
+                        longitude,
+                        existingFault.latitude,
+                        existingFault.longitude,
+                        distance
+                    )
+
+                    distance[0]
+                }
+
+            onSuccess(possibleDuplicates)
+        }
+        .addOnFailureListener(onFailure)
+} 
+
+fun checkForDuplicatesBeforeSubmission(
+    category: String,
+    latitude: Double,
+    longitude: Double,
+    distanceThresholdMetres: Float = 100f,
+    onDuplicatesFound: (List<Fault>) -> Unit,
+    onNoDuplicatesFound: () -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    findPotentialDuplicates(
+        category = category,
+        latitude = latitude,
+        longitude = longitude,
+        distanceThresholdMetres = distanceThresholdMetres,
+        onSuccess = { duplicates ->
+
+            if (duplicates.isEmpty()) {
+                onNoDuplicatesFound()
+            } else {
+                onDuplicatesFound(duplicates)
+            }
+        },
+        onFailure = onFailure
+    )
+}
 }
