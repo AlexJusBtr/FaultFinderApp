@@ -845,4 +845,98 @@ fun checkForDuplicatesBeforeSubmission(
         onFailure = onFailure
     )
 }
+fun markFaultAsDuplicate(
+    duplicateFaultId: String,
+    originalFaultId: String,
+    onSuccess: () -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    val userId = auth.currentUser?.uid
+
+    if (userId == null) {
+        onFailure(Exception("No user is logged in"))
+        return
+    }
+
+    if (duplicateFaultId.isBlank()) {
+        onFailure(Exception("Duplicate fault ID is required"))
+        return
+    }
+
+    if (originalFaultId.isBlank()) {
+        onFailure(Exception("Original fault ID is required"))
+        return
+    }
+
+    if (duplicateFaultId == originalFaultId) {
+        onFailure(Exception("A fault cannot be a duplicate of itself"))
+        return
+    }
+
+    val duplicateReference =
+        db.collection("faults")
+            .document(duplicateFaultId)
+
+    val originalReference =
+        db.collection("faults")
+            .document(originalFaultId)
+
+    originalReference
+        .get()
+        .addOnSuccessListener { originalDocument ->
+
+            if (!originalDocument.exists()) {
+                onFailure(
+                    Exception("Original fault report was not found")
+                )
+                return@addOnSuccessListener
+            }
+
+            duplicateReference
+                .get()
+                .addOnSuccessListener { duplicateDocument ->
+
+                    if (!duplicateDocument.exists()) {
+                        onFailure(
+                            Exception("Duplicate fault report was not found")
+                        )
+                        return@addOnSuccessListener
+                    }
+
+                    val now = System.currentTimeMillis()
+
+                    duplicateReference
+                        .update(
+                            mapOf(
+                                "isDuplicate" to true,
+                                "duplicateOfFaultId" to originalFaultId,
+                                "updatedAt" to now
+                            )
+                        )
+                        .addOnSuccessListener {
+
+                            val history = StatusHistory(
+                                status = duplicateDocument
+                                    .getString("status")
+                                    ?: "Submitted",
+                                changedBy = userId,
+                                timestamp = now,
+                                comment =
+                                    "Marked as duplicate of fault $originalFaultId"
+                            )
+
+                            duplicateReference
+                                .collection("statusHistory")
+                                .add(history)
+                                .addOnSuccessListener {
+                                    onSuccess()
+                                }
+                                .addOnFailureListener(onFailure)
+                        }
+                        .addOnFailureListener(onFailure)
+                }
+                .addOnFailureListener(onFailure)
+        }
+        .addOnFailureListener(onFailure)
+}
 }
