@@ -11,8 +11,11 @@ data class Fault(
     var imageUrl: String = "",                                // Cloud Storage URL or Base64 fault photo
     var priority: String = "Medium",                          // High, Medium, or Low (auto-assigned by triaging rules)
     var status: String = "Pending",                           // Pending, In Progress, or Resolved
+    var isDuplicate: Boolean = false,
+    var duplicateOfFaultId: String = "",
     var createdAt: Long = System.currentTimeMillis(),         // Creation timestamp (ms) for sorting newest first
-    var updatedAt: Long = System.currentTimeMillis(),         // Last status update timestamp (ms)
+    var updatedAt: Long = System.currentTimeMillis(),         // Last status update timestamp (ms)                                                               
+
 
     // --- Extra UI & Research Fields ---
     var ref: String = "",                                     // Human-readable reference ID (e.g., "#CT-0001")
