@@ -392,33 +392,64 @@ class ReportActivity : AppCompatActivity() {
                 etTitle.error = "Title must be 50 characters or fewer"
                 return@setOnClickListener
             }
-            repository.createFaultWithImage(
-                category = category,
-                description = description,
-                latitude = lat,
-                longitude = lon,
+repository.checkForDuplicatesBeforeSubmission(
+    category = category,
+    latitude = latitude,
+    longitude = longitude,
 
-                imageUri = selectedPhotoUri,
+    onDuplicatesFound = { duplicates ->
 
-                onSuccess = { reference ->
-                    Toast.makeText(
-                        this,
-                        "Report submitted successfully! Reference: $reference",
-                        Toast.LENGTH_LONG
-                    ).show()
+        runOnUiThread {
 
-                    finish()
-                },
-                onFailure = { error ->
-                    Toast.makeText(
-                        this,
-                        "Failed to submit report: ${error.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
+            val closestDuplicate = duplicates.first()
+
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Possible Duplicate Report")
+                .setMessage(
+                    "A similar $category fault has already been " +
+                    "reported near this location.\n\n" +
+                    "Would you still like to submit this report?"
+                )
+
+                .setNegativeButton("Cancel") { dialog, _ ->
+                    dialog.dismiss()
                 }
 
-            )
+                .setPositiveButton("Submit Anyway") { _, _ ->
 
+                    submitFault(
+                        category = category,
+                        description = description,
+                        latitude = latitude,
+                        longitude = longitude
+                    )
+                }
+
+                .show()
+        }
+    },
+
+    onNoDuplicatesFound = {
+
+        submitFault(
+            category = category,
+            description = description,
+            latitude = latitude,
+            longitude = longitude
+        )
+    },
+
+    onFailure = { exception ->
+
+        runOnUiThread {
+            Toast.makeText(
+                this,
+                "Could not check for duplicates: ${exception.message}",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+)
 
         }
     }
