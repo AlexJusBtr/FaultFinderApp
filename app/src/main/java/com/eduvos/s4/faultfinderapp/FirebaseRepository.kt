@@ -939,4 +939,53 @@ fun markFaultAsDuplicate(
         }
         .addOnFailureListener(onFailure)
 }
+fun removeDuplicateMark(
+    faultId: String,
+    onSuccess: () -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    val userId = auth.currentUser?.uid
+
+    if (userId == null) {
+        onFailure(Exception("No user is logged in"))
+        return
+    }
+
+    if (faultId.isBlank()) {
+        onFailure(Exception("Fault ID is required"))
+        return
+    }
+
+    val reference =
+        db.collection("faults")
+            .document(faultId)
+
+    val now = System.currentTimeMillis()
+
+    reference.update(
+        mapOf(
+            "isDuplicate" to false,
+            "duplicateOfFaultId" to "",
+            "updatedAt" to now
+        )
+    )
+        .addOnSuccessListener {
+
+            val history = StatusHistory(
+                status = "Submitted",
+                changedBy = userId,
+                timestamp = now,
+                comment = "Duplicate classification removed"
+            )
+
+            reference
+                .collection("statusHistory")
+                .add(history)
+                .addOnSuccessListener {
+                    onSuccess()
+                }
+                .addOnFailureListener(onFailure)
+        }
+        .addOnFailureListener(onFailure)
+}
 }
