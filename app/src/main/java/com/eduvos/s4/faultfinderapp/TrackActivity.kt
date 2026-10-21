@@ -12,6 +12,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.appcompat.app.AlertDialog
 
 /**
  * Activity responsible for displaying full details of a selected fault report,
@@ -65,7 +66,7 @@ class TrackActivity : AppCompatActivity() {
 
         // Placeholder feedback for adding a comment until Firebase Firestore comments are wired
         findViewById<Button>(R.id.commentBtn).setOnClickListener {
-            Toast.makeText(this, "Comment feature will connect to Firebase Firestore", Toast.LENGTH_SHORT).show()
+            showAddCommentDialog()
         }
     }
 
@@ -188,4 +189,44 @@ class TrackActivity : AppCompatActivity() {
             }
         }
     }
+
+    private fun showAddCommentDialog() {
+        val commentView = layoutInflater.inflate(
+            R.layout.dialog_add_comment,
+            null
+        )
+        val commentInput = commentView.findViewById<android.widget.EditText>(
+            R.id.commentInput
+        )
+
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Add Comment")
+            .setView(commentView)
+            .setPositiveButton("Submit", null)
+            .setNegativeButton("Cancel", null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                .setOnClickListener {
+                    val comment = commentInput.text.toString().trim()
+
+                    if (comment.isEmpty()) {
+                        commentInput.error = "Please enter a comment"
+                    } else {
+                        Toast.makeText(
+                            this,
+                            "Comment entered successfully. Saving to Firebase is next.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+
+                        dialog.dismiss()
+                    }
+                }
+        }
+
+        dialog.show()
+    }
+
 }
