@@ -10,32 +10,19 @@ import android.widget.ImageButton
 import android.widget.ListView
 import android.widget.RadioGroup
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 
 /**
- * Activity displaying the current user's submitted reports, summary metric cards
- * (Total, Open, Fixed), status filtering, and navigation to TrackActivity.
+ * Activity displaying the current user's submitted reports from Cloud Firestore,
+ * summary metric cards (Total, Open, Fixed), status filtering, and CRUD actions (Update/Delete).
  */
 class MyReportsActivity : AppCompatActivity() {
-
-    /**
-     * Data model representing a user-submitted fault report for item_report.xml.
-     */
-    data class UserReport(
-        val ref: String,
-        val title: String,
-        val location: String,
-        val dateDisplay: String,
-        val status: String,
-        val category: String,
-        val description: String,
-        val lat: Double,
-        val lon: Double
-    )
 
     private lateinit var fabMain: FloatingActionButton
     private lateinit var fabLeft: FloatingActionButton
@@ -46,46 +33,12 @@ class MyReportsActivity : AppCompatActivity() {
     private lateinit var tvTotalCount: TextView
     private lateinit var tvOpenCount: TextView
     private lateinit var tvFixedCount: TextView
+    private lateinit var filterGroup: RadioGroup
     private var isFabMenuOpen = false
 
-    // Sample user reports list (will be replaced by Firebase Firestore query for current user)
-    private val allUserReports = listOf(
-        UserReport(
-            ref = "#CT-0001",
-            title = "Pothole on Main Rd",
-            location = "Table View",
-            dateDisplay = "12 Oct",
-            status = "Pending",
-            category = "Roads",
-            description = "Deep pothole in the left lane near the intersection, causing vehicles to swerve.",
-            lat = -33.8267,
-            lon = 18.4912
-        ),
-        UserReport(
-            ref = "#CT-0002",
-            title = "Burst Pipe on Blaauwberg St",
-            location = "Table View",
-            dateDisplay = "13 Oct",
-            status = "In Progress",
-            category = "Water",
-            description = "Clean water gushing onto the pavement and flooding the storm drain.",
-            lat = -33.8075,
-            lon = 18.4735
-        ),
-        UserReport(
-            ref = "#CT-0003",
-            title = "Streetlight Out",
-            location = "Parklands North",
-            dateDisplay = "10 Oct",
-            status = "Resolved",
-            category = "Streetlights",
-            description = "Three consecutive streetlights out along the main residential stretch.",
-            lat = -33.7965,
-            lon = 18.5042
-        )
-    )
-
-    private var filteredReports: List<UserReport> = allUserReports
+    private val repository = FirebaseRepository()
+    private var allUserReports: List<Fault> = emptyList()
+    private var filteredReports: List<Fault> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -98,7 +51,6 @@ class MyReportsActivity : AppCompatActivity() {
             insets
         }
 
-        // Home Reset Rule: Clear backstack and return to Home
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener {
             startActivity(Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -116,16 +68,41 @@ class MyReportsActivity : AppCompatActivity() {
         tvTotalCount = findViewById(R.id.tvTotalCount)
         tvOpenCount = findViewById(R.id.tvOpenCount)
         tvFixedCount = findViewById(R.id.tvFixedCount)
+        filterGroup = findViewById(R.id.filterGroup)
 
-        updateDashboardCounters()
         setupFilterRadios()
-        renderReportList()
         setupSpeedDial()
+        loadUserReports()
     }
 
-    /**
-     * Calculates and displays Total, Open, and Fixed report counts in the top metric cards.
-     */
+    override fun onResume() {
+        super.onResume()
+        loadUserReports()
+    }
+
+    private fun loadUserReports() {
+        if (!repository.isLoggedIn()) {
+            allUserReports = emptyList()
+            filteredReports = emptyList()
+            emptyText.text = "Log in via Profile to view and manage your submitted reports."
+            updateDashboardCounters()
+            renderReportList()
+            return
+        }
+
+        repository.getMyFaults(
+            onSuccess = { faults ->
+                allUserReports = faults
+                emptyText.text = "No reports have been made"
+                applyCurrentFilter()
+                updateDashboardCounters()
+            },
+            onFailure = { e ->
+                Toast.makeText(this, "Error loading reports: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
     private fun updateDashboardCounters() {
         val total = allUserReports.size
         val fixed = allUserReports.count {
@@ -138,29 +115,25 @@ class MyReportsActivity : AppCompatActivity() {
         tvFixedCount.text = fixed.toString()
     }
 
-    /**
-     * Filters the displayed reports when the All, Open, or Fixed radio buttons are toggled.
-     */
     private fun setupFilterRadios() {
-        val filterGroup = findViewById<RadioGroup>(R.id.filterGroup)
-        filterGroup.setOnCheckedChangeListener { _, checkedId ->
-            filteredReports = when (checkedId) {
-                R.id.rbOpen -> allUserReports.filter {
-                    !it.status.equals("Resolved", ignoreCase = true) && !it.status.equals("Fixed", ignoreCase = true)
-                }
-                R.id.rbFixed -> allUserReports.filter {
-                    it.status.equals("Resolved", ignoreCase = true) || it.status.equals("Fixed", ignoreCase = true)
-                }
-                else -> allUserReports
-            }
-            renderReportList()
+        filterGroup.setOnCheckedChangeListener { _, _ ->
+            applyCurrentFilter()
         }
     }
 
-    /**
-     * Binds the filtered list of reports to listMyReports using item_report.xml and
-     * sets up click navigation to TrackActivity.
-     */
+    private fun applyCurrentFilter() {
+        filteredReports = when (filterGroup.checkedRadioButtonId) {
+            R.id.rbOpen -> allUserReports.filter {
+                !it.status.equals("Resolved", ignoreCase = true) && !it.status.equals("Fixed", ignoreCase = true)
+            }
+            R.id.rbFixed -> allUserReports.filter {
+                it.status.equals("Resolved", ignoreCase = true) || it.status.equals("Fixed", ignoreCase = true)
+            }
+            else -> allUserReports
+        }
+        renderReportList()
+    }
+
     private fun renderReportList() {
         if (filteredReports.isEmpty()) {
             emptyText.visibility = View.VISIBLE
@@ -181,36 +154,89 @@ class MyReportsActivity : AppCompatActivity() {
                     .inflate(R.layout.item_report, parent, false)
 
                 val item = filteredReports[position]
-                view.findViewById<TextView>(R.id.tvReportRef).text = item.ref
+                view.findViewById<TextView>(R.id.tvReportRef).text = "${item.ref} • ${item.priority} Priority"
                 view.findViewById<TextView>(R.id.tvReportTitle).text = item.title
-                view.findViewById<TextView>(R.id.tvReportLocation).text = "${item.location} • ${item.dateDisplay}"
+                view.findViewById<TextView>(R.id.tvReportLocation).text = "${item.location} • ${item.date}"
                 view.findViewById<TextView>(R.id.tvReportStatus).text = item.status
 
                 return view
             }
         }
 
-        // Open TrackActivity when any report card is pressed
+        // Single tap opens TrackActivity details
         listMyReports.setOnItemClickListener { _, _, position, _ ->
             val item = filteredReports[position]
             val intent = Intent(this, TrackActivity::class.java).apply {
+                putExtra("EXTRA_FAULT_ID", item.id)
                 putExtra("EXTRA_REF", item.ref)
                 putExtra("EXTRA_TITLE", item.title)
                 putExtra("EXTRA_LOCATION", item.location)
                 putExtra("EXTRA_STATUS", item.status)
+                putExtra("EXTRA_PRIORITY", item.priority)
+                putExtra("EXTRA_DEPARTMENT", item.department)
                 putExtra("EXTRA_CATEGORY", item.category)
-                putExtra("EXTRA_DATE", "${item.dateDisplay} 2026")
+                putExtra("EXTRA_DATE", item.date)
                 putExtra("EXTRA_DESCRIPTION", item.description)
-                putExtra("EXTRA_LAT", item.lat)
-                putExtra("EXTRA_LON", item.lon)
+                putExtra("EXTRA_LAT", item.latitude)
+                putExtra("EXTRA_LON", item.longitude)
+                putExtra("EXTRA_CONFIRMATIONS", item.confirmations)
             }
             startActivity(intent)
         }
+
+        // Long-press provides Update Status and Delete Report options (Full CRUD)
+        listMyReports.setOnItemLongClickListener { _, _, position, _ ->
+            val item = filteredReports[position]
+            val options = arrayOf(
+                "Mark as Resolved",
+                "Mark as In Progress",
+                "Delete Report"
+            )
+            AlertDialog.Builder(this)
+                .setTitle("Manage Report ${item.ref}")
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> repository.updateFaultStatus(
+                            faultId = item.id,
+                            newStatus = "Resolved",
+                            comment = "Marked as resolved by reporting citizen",
+                            onSuccess = {
+                                Toast.makeText(this, "${item.ref} marked as Resolved", Toast.LENGTH_SHORT).show()
+                                loadUserReports()
+                            },
+                            onFailure = { e ->
+                                Toast.makeText(this, "Update failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                        1 -> repository.updateFaultStatus(
+                            faultId = item.id,
+                            newStatus = "In Progress",
+                            comment = "Status updated to In Progress",
+                            onSuccess = {
+                                Toast.makeText(this, "${item.ref} marked as In Progress", Toast.LENGTH_SHORT).show()
+                                loadUserReports()
+                            },
+                            onFailure = { e ->
+                                Toast.makeText(this, "Update failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                        2 -> repository.deleteFault(
+                            faultId = item.id,
+                            onSuccess = {
+                                Toast.makeText(this, "Report ${item.ref} deleted", Toast.LENGTH_SHORT).show()
+                                loadUserReports()
+                            },
+                            onFailure = { e ->
+                                Toast.makeText(this, "Delete failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
+                }
+                .show()
+            true
+        }
     }
 
-    /**
-     * Configures the bottom-right radial speed-dial FAB menu.
-     */
     private fun setupSpeedDial() {
         fabMain = findViewById(R.id.fabMain)
         fabLeft = findViewById(R.id.fabLeft)
@@ -226,14 +252,12 @@ class MyReportsActivity : AppCompatActivity() {
 
         fabMain.setOnClickListener { toggleSpeedDial() }
 
-        // Left -> Map View
         fabLeft.setOnClickListener {
             toggleSpeedDial()
             startActivity(Intent(this, MapActivity::class.java))
             finish()
         }
 
-        // Diagonal -> Home Dashboard
         fabDiag.setOnClickListener {
             toggleSpeedDial()
             startActivity(Intent(this, MainActivity::class.java).apply {
@@ -242,7 +266,6 @@ class MyReportsActivity : AppCompatActivity() {
             finish()
         }
 
-        // Top -> Report a Fault
         fabTop.setOnClickListener {
             toggleSpeedDial()
             startActivity(Intent(this, ReportActivity::class.java))

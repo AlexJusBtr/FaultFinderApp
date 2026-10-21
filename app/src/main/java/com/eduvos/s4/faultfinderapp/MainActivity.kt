@@ -5,9 +5,12 @@ import android.graphics.Color
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
+import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ListView
 import android.widget.TextView
@@ -17,34 +20,38 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.firebase.firestore.ListenerRegistration
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
-import com.google.firebase.firestore.ListenerRegistration
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
- * Home dashboard activity featuring an embedded OpenStreetMap preview,
- * quick-category reporting buttons, a recent reports list, and the speed-dial navigation FAB.
+ * Home dashboard activity featuring an embedded OpenStreetMap preview, real-time search bar,
+ * quick-category reporting buttons, live Firestore recent reports, and speed-dial navigation.
  */
 class MainActivity : AppCompatActivity() {
 
-    /**
-     * Data model representing a fault item displayed on the Home screen and map preview.
-     */
     data class FaultPreview(
+        val id: String,
         val ref: String,
         val emoji: String,
         val title: String,
         val location: String,
         val status: String,
+        val priority: String,
+        val department: String,
         val category: String,
-        val date: Long,
+        val dateString: String,
         val description: String,
         val lat: Double,
-        val lon: Double
+        val lon: Double,
+        val confirmations: Int
     )
 
     private lateinit var map: MapView
@@ -57,13 +64,13 @@ class MainActivity : AppCompatActivity() {
     private var isFabMenuOpen = false
     private var faultsListener: ListenerRegistration? = null
 
+    private var allLoadedFaults = listOf<FaultPreview>()
     private var recentFaults = listOf<FaultPreview>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Configure osmdroid tile cache and user agent
         val osmConfig = Configuration.getInstance()
         osmConfig.load(this, getSharedPreferences("osm_prefs", MODE_PRIVATE))
         osmConfig.userAgentValue = packageName
@@ -80,15 +87,13 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
+        setupMap()
+        setupSearchBar()
         loadFaults()
         setupSpeedDial()
         setupHeaderListeners()
     }
 
-    /**
-     * Initializes the embedded OpenStreetMap view, applies a subtle desaturation filter,
-     * and places markers for recent faults.
-     */
     private fun setupMap() {
         map = findViewById(R.id.mapView)
         map.setTileSource(TileSourceFactory.MAPNIK)
@@ -103,27 +108,55 @@ class MainActivity : AppCompatActivity() {
         map.controller.setZoom(13.0)
         map.controller.setCenter(defaultCenter)
 
-        // Add markers for each recent fault and allow tapping the marker window to view details
-        recentFaults.forEach { fault ->
-            val marker = Marker(map).apply {
-                position = GeoPoint(fault.lat, fault.lon)
-                title = "${fault.title} (${fault.ref})"
-                snippet = "${fault.category} • ${fault.status}"
-            }
-            map.overlays.add(marker)
-        }
+        refreshMapMarkers()
 
-        // Recenter button restores default zoom and position
         findViewById<ImageButton>(R.id.btnRecenter).setOnClickListener {
             map.controller.animateTo(defaultCenter)
             map.controller.setZoom(14.0)
         }
     }
 
+    private fun refreshMapMarkers() {
+        if (!::map.isInitialized) return
+        map.overlays.clear()
+
+        recentFaults.forEach { fault ->
+            val marker = Marker(map).apply {
+                position = GeoPoint(fault.lat, fault.lon)
+                title = "${fault.title} (${fault.ref})"
+                snippet = "${fault.category} • ${fault.status} • ${fault.priority} Priority"
+            }
+            map.overlays.add(marker)
+        }
+        map.invalidate()
+    }
+
     /**
-     * Populates the recent reports ListView and wires click listeners for both
-     * the section header (opens Nearby tab) and individual items (opens TrackActivity).
+     * Wires the top search bar to filter recent reports and map markers in real time.
      */
+    private fun setupSearchBar() {
+        val searchBar = findViewById<EditText>(R.id.searchBar)
+        searchBar.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val query = s?.toString()?.trim()?.lowercase() ?: ""
+                recentFaults = if (query.isEmpty()) {
+                    allLoadedFaults
+                } else {
+                    allLoadedFaults.filter {
+                        it.title.lowercase().contains(query) ||
+                                it.location.lowercase().contains(query) ||
+                                it.category.lowercase().contains(query) ||
+                                it.ref.lowercase().contains(query)
+                    }
+                }
+                setupRecentReports()
+                refreshMapMarkers()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+    }
+
     private fun setupRecentReports() {
         val recentReportsList: ListView = findViewById(R.id.listRecentReports)
         val reportsDisplayList = recentFaults.map {
@@ -144,7 +177,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Tapping the "Recent reports near you / View all >" header opens the Nearby & History tab
         findViewById<View>(R.id.headerRecentReports).setOnClickListener {
             val intent = Intent(this, ReportActivity::class.java).apply {
                 putExtra("OPEN_NEARBY_TAB", true)
@@ -152,27 +184,27 @@ class MainActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        // Tapping a specific fault report opens TrackActivity with its details
         recentReportsList.setOnItemClickListener { _, _, position, _ ->
             val fault = recentFaults[position]
             val intent = Intent(this, TrackActivity::class.java).apply {
+                putExtra("EXTRA_FAULT_ID", fault.id)
                 putExtra("EXTRA_REF", fault.ref)
                 putExtra("EXTRA_TITLE", fault.title)
                 putExtra("EXTRA_LOCATION", fault.location)
                 putExtra("EXTRA_STATUS", fault.status)
+                putExtra("EXTRA_PRIORITY", fault.priority)
+                putExtra("EXTRA_DEPARTMENT", fault.department)
                 putExtra("EXTRA_CATEGORY", fault.category)
-                putExtra("EXTRA_DATE", fault.date)
+                putExtra("EXTRA_DATE", fault.dateString)
                 putExtra("EXTRA_DESCRIPTION", fault.description)
                 putExtra("EXTRA_LAT", fault.lat)
                 putExtra("EXTRA_LON", fault.lon)
+                putExtra("EXTRA_CONFIRMATIONS", fault.confirmations)
             }
             startActivity(intent)
         }
     }
 
-    /**
-     * Configures the bottom-right radial speed-dial FAB menu.
-     */
     private fun setupSpeedDial() {
         fabMain = findViewById(R.id.fabMain)
         fabReport = findViewById(R.id.fabReport)
@@ -204,9 +236,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Sets up listeners for the top profile icon and horizontal quick-report category chips.
-     */
     private fun setupHeaderListeners() {
         findViewById<ImageButton>(R.id.btnProfile).setOnClickListener {
             startActivity(Intent(this, ProfileActivity::class.java))
@@ -233,9 +262,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun dpToPx(dp: Float): Float = dp * resources.displayMetrics.density
 
-    /**
-     * Animates the opening and closing of the speed-dial FAB cluster.
-     */
     private fun toggleSpeedDial() {
         isFabMenuOpen = !isFabMenuOpen
         if (isFabMenuOpen) {
@@ -254,29 +280,31 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadFaults() {
+        val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.ENGLISH)
         faultsListener = repository.listenToAllFaults(
-
             onChange = { faults ->
-
-
-                recentFaults = faults.map { fault ->
-
+                allLoadedFaults = faults.map { fault ->
+                    val displayDate = fault.date.ifBlank { dateFormat.format(Date(fault.createdAt)) }
                     FaultPreview(
+                        id = fault.id,
                         ref = fault.ref,
-                        emoji =getFaultEmoji(fault.category) ,
+                        emoji = getFaultEmoji(fault.category),
                         title = fault.title,
                         location = fault.location,
                         status = fault.status,
+                        priority = fault.priority,
+                        department = fault.department,
                         category = fault.category,
-                        date = fault.createdAt,
+                        dateString = displayDate,
                         description = fault.description,
                         lat = fault.latitude,
-                        lon = fault.longitude
+                        lon = fault.longitude,
+                        confirmations = fault.confirmations
                     )
                 }
+                recentFaults = allLoadedFaults
                 setupRecentReports()
-                setupMap()
-
+                refreshMapMarkers()
             },
             onFailure = { exception ->
                 Toast.makeText(
@@ -287,6 +315,7 @@ class MainActivity : AppCompatActivity() {
             }
         )
     }
+
     private fun getFaultEmoji(category: String): String {
         return when (category.trim().lowercase()) {
             "roads" -> "🚧"
@@ -299,28 +328,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-
     override fun onResume() {
         super.onResume()
-
-        if (::map.isInitialized) {
-            map.onResume()
-        }
+        if (::map.isInitialized) map.onResume()
     }
 
     override fun onPause() {
-        if (::map.isInitialized) {
-            map.onPause()
-        }
-
+        if (::map.isInitialized) map.onPause()
         super.onPause()
     }
 
     override fun onDestroy() {
-        if (::map.isInitialized) {
-            map.onDetach()
-        }
-
+        faultsListener?.remove()
+        if (::map.isInitialized) map.onDetach()
         super.onDestroy()
     }
 }

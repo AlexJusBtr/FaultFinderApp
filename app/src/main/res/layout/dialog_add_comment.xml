@@ -3,18 +3,22 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:paddingStart="20dp"
+    android:paddingTop="12dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="8dp">
 
-    <!-- Comment text box -->
     <EditText
         android:id="@+id/commentInput"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Write your comment here..."
+        android:layout_height="84dp"
+        android:background="@drawable/bg_input"
         android:gravity="top|start"
-        android:minLines="3"
-        android:maxLines="6"
+        android:hint="Add an update or note about this fault..."
         android:inputType="textMultiLine|textCapSentences"
-        android:padding="12dp"/>
+        android:padding="12dp"
+        android:textColor="#1E293B"
+        android:textColorHint="@color/grey"
+        android:textSize="13.5sp" />
 
 </LinearLayout>
