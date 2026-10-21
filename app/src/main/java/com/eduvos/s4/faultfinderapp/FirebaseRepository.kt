@@ -276,6 +276,30 @@ class FirebaseRepository {
             }
             .addOnFailureListener(onFailure)
     }
+    fun listenToAllFaults(
+        onChange: (List<Fault>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ): ListenerRegistration {
+
+        return db.collection("faults")
+            .orderBy(
+                "createdAt",
+                Query.Direction.DESCENDING
+            )
+            .addSnapshotListener { snapshots, error ->
+
+                if (error != null) {
+                    onFailure(error)
+                    return@addSnapshotListener
+                }
+
+                val faults =
+                    snapshots?.toObjects(Fault::class.java)
+                        ?: emptyList()
+
+                onChange(faults)
+            }
+    }
 
     fun getMyFaults(
         onSuccess: (List<Fault>) -> Unit,
