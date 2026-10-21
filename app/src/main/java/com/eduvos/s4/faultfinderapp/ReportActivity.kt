@@ -25,6 +25,10 @@ import androidx.appcompat.app.AlertDialog
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import java.io.File
+import android.location.Geocoder
+import android.location.Address
+import android.os.Build
+import java.util.Locale
 
 /**
  * Activity hosting both the Fault Reporting submission form and the Nearby & History
@@ -68,6 +72,8 @@ class ReportActivity : AppCompatActivity() {
     private var isFabMenuOpen = false
     private var selectedPhotoUri: Uri? = null
     private var takenPhoto: Uri? = null
+    private var selectedLatitude: Double? = null
+    private var selectedLongitude: Double? = null
     private val repository = FirebaseRepository()
 
     //for the images
@@ -102,16 +108,42 @@ class ReportActivity : AppCompatActivity() {
                     "SELECTED_LON", Double.NaN
                 )
 
+
                 if (!latitude.isNaN() && !longitude.isNaN()) {
-                    etLocation.setText(
-                        String.format(
-                            java.util.Locale.US,
-                            "%.6f, %.6f",
-                            latitude,
-                            longitude
-                        )
+                    // Save the actual coordinates for duplicate checking and submission.
+                    selectedLatitude = latitude
+                    selectedLongitude = longitude
+
+                    // Show a temporary message while the address is being found.
+                    etLocation.setText("Finding address...")
+
+                    getAddressFromCoordinates(
+                        latitude = latitude,
+                        longitude = longitude,
+                        onSuccess = { address ->
+                            //displays the readable address
+                            etLocation.setText(address)
+                        },
+                        onFailure = { exception ->
+                            // displays the coordinates instead
+                            etLocation.setText(
+                                String.format(
+                                    Locale.US,
+                                    "%.6f, %.6f",
+                                    latitude,
+                                    longitude
+                                )
+                            )
+
+                            Toast.makeText(
+                                this,
+                                "Couldn't find the address. Coordinates are shown instead.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
                     )
                 }
+
             }
         }
 
@@ -366,32 +398,20 @@ class ReportActivity : AppCompatActivity() {
                 Toast.makeText(this, "Please enter a title and location", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            val coordinates = loc.split(",")
 
-            if (coordinates.size != 2) {
+            val latitude = selectedLatitude
+            val longitude = selectedLongitude
+
+            if (latitude == null || longitude == null) {
                 Toast.makeText(
                     this,
-                    "Please select a valid location from the map",
+                    "Please select a location from the map",
                     Toast.LENGTH_SHORT
                 ).show()
                 return@setOnClickListener
             }
 
-val latitude = coordinates[0].trim().toDoubleOrNull()
-val longitude = coordinates[1].trim().toDoubleOrNull()
 
-if (latitude == null || longitude == null) {
-                Toast.makeText(
-                    this,
-                    "Invalid coordinates. Please select your location again",
-                    Toast.LENGTH_SHORT
-                ).show()
-                return@setOnClickListener
-            }
-            if (title.length > 50) {
-                etTitle.error = "Title must be 50 characters or fewer"
-                return@setOnClickListener
-            }
 repository.checkForDuplicatesBeforeSubmission(
     category = category,
     latitude = latitude,
@@ -419,7 +439,8 @@ repository.checkForDuplicatesBeforeSubmission(
                         category = category,
                         description = description,
                         latitude = latitude,
-                        longitude = longitude
+                        longitude = longitude,
+                        location = loc
                     )
                 }
 
@@ -433,7 +454,8 @@ repository.checkForDuplicatesBeforeSubmission(
             category = category,
             description = description,
             latitude = latitude,
-            longitude = longitude
+            longitude = longitude,
+            location = loc
         )
     },
 
@@ -453,6 +475,7 @@ repository.checkForDuplicatesBeforeSubmission(
     private fun submitFault(
         category: String,
         description: String,
+        location: String,
         latitude: Double,
         longitude: Double
     ) {
@@ -461,6 +484,7 @@ repository.checkForDuplicatesBeforeSubmission(
             description = description,
             latitude = latitude,
             longitude = longitude,
+            location=location,
             imageUri = selectedPhotoUri,
 
             onSuccess = { reference ->
@@ -567,6 +591,65 @@ repository.checkForDuplicatesBeforeSubmission(
                 }
             }
             .show()
+    }
+    private fun getAddressFromCoordinates(
+        latitude: Double,
+        longitude: Double,
+        onSuccess: (String) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        if (!Geocoder.isPresent()) {
+            onFailure(Exception("Geocoder is not available on this device"))
+            return
+        }
+
+        val geocoder = Geocoder(this, Locale.getDefault())
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            geocoder.getFromLocation(
+                latitude,
+                longitude,
+                1
+            ) { addresses ->
+                runOnUiThread {
+                    val address = addresses.firstOrNull()
+                        ?.getAddressLine(0)
+
+                    if (address != null) {
+                        onSuccess(address)
+                    } else {
+                        onFailure(Exception("No address found for this location"))
+                    }
+                }
+            }
+        } else {
+            Thread {
+                try {
+                    @Suppress("DEPRECATION")
+                    val addresses = geocoder.getFromLocation(
+                        latitude,
+                        longitude,
+                        1
+                    )
+
+                    val address = addresses
+                        ?.firstOrNull()
+                        ?.getAddressLine(0)
+
+                    runOnUiThread {
+                        if (address != null) {
+                            onSuccess(address)
+                        } else {
+                            onFailure(Exception("No address found for this location"))
+                        }
+                    }
+                } catch (e: Exception) {
+                    runOnUiThread {
+                        onFailure(e)
+                    }
+                }
+            }.start()
+        }
     }
 
 }

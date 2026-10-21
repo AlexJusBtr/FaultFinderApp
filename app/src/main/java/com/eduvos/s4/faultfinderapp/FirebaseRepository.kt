@@ -153,6 +153,7 @@ class FirebaseRepository {
         description: String,
         latitude: Double,
         longitude: Double,
+        location: String,
         imageUrl: String = "",
         onSuccess: (String) -> Unit,
         onFailure: (Exception) -> Unit
@@ -184,6 +185,7 @@ class FirebaseRepository {
             description = description.trim(),
             latitude = latitude,
             longitude = longitude,
+            location=location,
             imageUrl = imageUrl,
             priority = "Medium",
             status = "Submitted",
@@ -216,6 +218,7 @@ class FirebaseRepository {
         description: String,
         latitude: Double,
         longitude: Double,
+        location: String,
         imageUri: Uri?,
         onSuccess: (String) -> Unit,
         onFailure: (Exception) -> Unit
@@ -227,6 +230,7 @@ class FirebaseRepository {
                 description,
                 latitude,
                 longitude,
+                location,
                 "",
                 onSuccess,
                 onFailure
@@ -244,6 +248,7 @@ class FirebaseRepository {
                     description,
                     latitude,
                     longitude,
+                    location,
                     imageUrl,
                     onSuccess,
                     onFailure
