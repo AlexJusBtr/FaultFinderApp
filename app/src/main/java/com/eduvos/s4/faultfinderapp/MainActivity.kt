@@ -11,6 +11,7 @@ import android.widget.ArrayAdapter
 import android.widget.ImageButton
 import android.widget.ListView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -22,6 +23,7 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import com.google.firebase.firestore.ListenerRegistration
 
 /**
  * Home dashboard activity featuring an embedded OpenStreetMap preview,
@@ -39,7 +41,7 @@ class MainActivity : AppCompatActivity() {
         val location: String,
         val status: String,
         val category: String,
-        val date: String,
+        val date: Long,
         val description: String,
         val lat: Double,
         val lon: Double
@@ -51,59 +53,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fabMap: FloatingActionButton
     private lateinit var fabTracker: FloatingActionButton
     private val defaultCenter = GeoPoint(-33.8120, 18.4900) // Table View / Parklands area center
+    private val repository = FirebaseRepository()
     private var isFabMenuOpen = false
+    private var faultsListener: ListenerRegistration? = null
 
-    // Sample fault records used until live Firestore listener is attached
-    private val recentFaults = listOf(
-        FaultPreview(
-            ref = "#CT-0001",
-            emoji = "🚧",
-            title = "Pothole on Main Rd",
-            location = "Table View",
-            status = "Pending",
-            category = "Roads",
-            date = "12 Oct 2026",
-            description = "Deep pothole in the left lane near the intersection, causing vehicles to swerve.",
-            lat = -33.8267,
-            lon = 18.4912
-        ),
-        FaultPreview(
-            ref = "#CT-0002",
-            emoji = "💧",
-            title = "Burst Pipe",
-            location = "Blaauwberg St",
-            status = "In Progress",
-            category = "Water",
-            date = "13 Oct 2026",
-            description = "Clean water gushing onto the pavement and flooding the storm drain.",
-            lat = -33.8075,
-            lon = 18.4735
-        ),
-        FaultPreview(
-            ref = "#CT-0003",
-            emoji = "💡",
-            title = "Streetlight Out",
-            location = "Parklands North",
-            status = "Resolved",
-            category = "Streetlights",
-            date = "10 Oct 2026",
-            description = "Three consecutive streetlights out along the main residential stretch.",
-            lat = -33.7965,
-            lon = 18.5042
-        ),
-        FaultPreview(
-            ref = "#CT-0004",
-            emoji = "🗑️",
-            title = "Illegal Dumping",
-            location = "Sandown Rd",
-            status = "Pending",
-            category = "Waste",
-            date = "14 Oct 2026",
-            description = "Construction rubble and household refuse dumped on the road verge.",
-            lat = -33.8012,
-            lon = 18.5180
-        )
-    )
+    private var recentFaults = listOf<FaultPreview>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -126,8 +80,7 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        setupMap()
-        setupRecentReports()
+        loadFaults()
         setupSpeedDial()
         setupHeaderListeners()
     }
@@ -300,7 +253,74 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onResume() { super.onResume(); map.onResume() }
-    override fun onPause() { super.onPause(); map.onPause() }
-    override fun onDestroy() { super.onDestroy(); map.onDetach() }
+    private fun loadFaults() {
+        faultsListener = repository.listenToAllFaults(
+
+            onChange = { faults ->
+
+
+                recentFaults = faults.map { fault ->
+
+                    FaultPreview(
+                        ref = fault.ref,
+                        emoji =getFaultEmoji(fault.category) ,
+                        title = fault.title,
+                        location = fault.location,
+                        status = fault.status,
+                        category = fault.category,
+                        date = fault.createdAt,
+                        description = fault.description,
+                        lat = fault.latitude,
+                        lon = fault.longitude
+                    )
+                }
+                setupRecentReports()
+                setupMap()
+
+            },
+            onFailure = { exception ->
+                Toast.makeText(
+                    this,
+                    "Failed to load reports: ${exception.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        )
+    }
+    private fun getFaultEmoji(category: String): String {
+        return when (category.trim().lowercase()) {
+            "roads" -> "🚧"
+            "water" -> "💧"
+            "electricity" -> "⚡"
+            "streetlights" -> "💡"
+            "waste" -> "🗑️"
+            "other" -> "❓"
+            else -> "📍"
+        }
+    }
+
+
+    override fun onResume() {
+        super.onResume()
+
+        if (::map.isInitialized) {
+            map.onResume()
+        }
+    }
+
+    override fun onPause() {
+        if (::map.isInitialized) {
+            map.onPause()
+        }
+
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        if (::map.isInitialized) {
+            map.onDetach()
+        }
+
+        super.onDestroy()
+    }
 }
