@@ -229,7 +229,8 @@ class ReportActivity : AppCompatActivity() {
     private fun loadLiveNearbyFaults() {
         repository.getAllFaults(
             onSuccess = { faults ->
-                allFetchedFaults = faults
+                // Filter out resolved faults from the list
+                allFetchedFaults = faults.filter { !it.status.equals("Resolved", ignoreCase = true) }
                 renderNearbyList()
             },
             onFailure = { e ->
@@ -239,22 +240,24 @@ class ReportActivity : AppCompatActivity() {
     }
 
     /**
-     * Renders nearby/historical reports into item_report.xml cards and loads Cloudinary
-     * image URLs using Glide.
+     * Renders nearby/historical reports into item_report.xml cards excluding resolved faults.
      */
     private fun renderNearbyList() {
         val nearbyToggle = findViewById<RadioGroup>(R.id.nearbyToggle)
         val refLat = selectedLatitude ?: defaultLat
         val refLon = selectedLongitude ?: defaultLon
 
+        // Ensure resolved faults are excluded
+        val activeFaults = allFetchedFaults.filter { !it.status.equals("Resolved", ignoreCase = true) }
+
         displayedNearbyFaults = if (nearbyToggle.checkedRadioButtonId == R.id.rbNearMe) {
-            allFetchedFaults.sortedBy { fault ->
+            activeFaults.sortedBy { fault ->
                 val dist = FloatArray(1)
                 Location.distanceBetween(refLat, refLon, fault.latitude, fault.longitude, dist)
                 dist[0]
             }
         } else {
-            allFetchedFaults.sortedByDescending { it.createdAt }
+            activeFaults.sortedByDescending { it.createdAt }
         }
 
         if (displayedNearbyFaults.isEmpty()) {
@@ -323,7 +326,6 @@ class ReportActivity : AppCompatActivity() {
                 putExtra("EXTRA_CATEGORY", fault.category)
                 putExtra("EXTRA_DATE", fault.date)
                 putExtra("EXTRA_DESCRIPTION", fault.description)
-                putExtra("EXTRA_IMAGE_URL", fault.imageUrl)
                 putExtra("EXTRA_LAT", fault.latitude)
                 putExtra("EXTRA_LON", fault.longitude)
                 putExtra("EXTRA_CONFIRMATIONS", fault.confirmations)
@@ -477,10 +479,6 @@ class ReportActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Submits the fault report and uploads any selected photo via Cloudinary inside
-     * repository.createFaultWithImage.
-     */
     private fun submitFault(
         title: String,
         category: String,

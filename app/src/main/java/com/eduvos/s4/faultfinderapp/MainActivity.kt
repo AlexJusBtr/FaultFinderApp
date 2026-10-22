@@ -1,24 +1,34 @@
 package com.eduvos.s4.faultfinderapp
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ArrayAdapter
+import android.widget.BaseAdapter
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.bumptech.glide.Glide
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.firebase.firestore.ListenerRegistration
@@ -32,6 +42,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Home dashboard activity featuring an embedded OpenStreetMap preview, real-time search bar,
+ * live GPS nearest-fault sorting, card-based recent reports list, and speed-dial navigation.
+ */
 class MainActivity : AppCompatActivity() {
 
     data class FaultPreview(
@@ -46,10 +60,12 @@ class MainActivity : AppCompatActivity() {
         val category: String,
         val dateString: String,
         val description: String,
-        val imageUrl: String,
         val lat: Double,
         val lon: Double,
-        val confirmations: Int
+        val confirmations: Int,
+        val imageUrl: String,
+        val distanceMeters: Float,
+        val distanceText: String
     )
 
     private lateinit var map: MapView
@@ -57,13 +73,29 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fabReport: FloatingActionButton
     private lateinit var fabMap: FloatingActionButton
     private lateinit var fabTracker: FloatingActionButton
-    private val defaultCenter = GeoPoint(-33.8120, 18.4900)
+    private lateinit var listRecentReports: ListView
+    private lateinit var emptyRecentReports: TextView
+    private lateinit var btnAdminHeader: MaterialButton
+
+    private val defaultCenter = GeoPoint(-33.8120, 18.4900) // Table View / Parklands center
+    private var userLocation: Location? = null
     private val repository = FirebaseRepository()
     private var isFabMenuOpen = false
     private var faultsListener: ListenerRegistration? = null
 
+    private var rawFirestoreFaults = listOf<Fault>()
     private var allLoadedFaults = listOf<FaultPreview>()
     private var recentFaults = listOf<FaultPreview>()
+
+    private val requestLocationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (fineGranted || coarseGranted) {
+            updateUserLocation()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,12 +117,62 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
+        listRecentReports = findViewById(R.id.listRecentReports)
+        emptyRecentReports = findViewById(R.id.emptyRecentReports)
+        btnAdminHeader = findViewById(R.id.btnAdminHeader)
+
         setupMap()
         setupSearchBar()
+        checkLocationPermissionAndFetch()
         loadFaults()
         setupSpeedDial()
         setupHeaderListeners()
         checkAdminButtonVisibility()
+    }
+
+    private fun checkLocationPermissionAndFetch() {
+        val fineGranted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val coarseGranted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (fineGranted || coarseGranted) {
+            updateUserLocation()
+        } else {
+            requestLocationPermission.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    private fun updateUserLocation() {
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+        try {
+            val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+                .filter { locationManager.isProviderEnabled(it) }
+
+            val lastLoc = providers.firstNotNullOfOrNull { locationManager.getLastKnownLocation(it) }
+            if (lastLoc != null) {
+                userLocation = lastLoc
+                recalculateDistancesAndSort()
+            }
+
+            val listener = object : LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    userLocation = location
+                    recalculateDistancesAndSort()
+                    locationManager.removeUpdates(this)
+                }
+            }
+            providers.forEach {
+                locationManager.requestLocationUpdates(it, 2000L, 5f, listener)
+            }
+        } catch (_: SecurityException) { }
     }
 
     private fun checkAdminButtonVisibility() {
@@ -117,11 +199,10 @@ class MainActivity : AppCompatActivity() {
         map.controller.setZoom(13.0)
         map.controller.setCenter(defaultCenter)
 
-        refreshMapMarkers()
-
         findViewById<ImageButton>(R.id.btnRecenter).setOnClickListener {
-            map.controller.animateTo(defaultCenter)
-            map.controller.setZoom(14.0)
+            val target = userLocation?.let { GeoPoint(it.latitude, it.longitude) } ?: defaultCenter
+            map.controller.animateTo(target)
+            map.controller.setZoom(15.0)
         }
     }
 
@@ -129,35 +210,31 @@ class MainActivity : AppCompatActivity() {
         if (!::map.isInitialized) return
         map.overlays.clear()
 
-        recentFaults.forEach { fault ->
+        // Automatically filters out resolved faults so they disappear from the map view
+        val activeFaults = recentFaults.filter { !it.status.equals("Resolved", ignoreCase = true) }
+
+        activeFaults.forEach { fault ->
             val markerDrawable = FaultMapMarkerDrawable(
                 context = this,
                 pinColor = getPriorityColor(fault.priority),
                 iconResource = getFaultIcon(fault.category)
             )
+
             val marker = Marker(map).apply {
                 position = GeoPoint(fault.lat, fault.lon)
                 title = "${fault.title} (${fault.ref})"
-                snippet =
-                    "${fault.category} • ${fault.status} • ${fault.priority} Priority"
-
+                snippet = "${fault.category} • ${fault.distanceText} • ${fault.status}"
                 icon = markerDrawable
-                setAnchor(
-                    Marker.ANCHOR_CENTER,
-                    Marker.ANCHOR_BOTTOM
-                )            }
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            }
             map.overlays.add(marker)
         }
         map.invalidate()
     }
 
-    /**
-     * these 2 functions decide which color and icon to use for each fault based on priority and category.
-     * this only applies to the map on main screen.
-     * */
     private fun getPriorityColor(priority: String): Int {
         return when (priority.trim().lowercase()) {
-            "high" -> Color.rgb(220, 38, 38)
+            "critical", "high" -> Color.rgb(220, 38, 38)
             "medium" -> Color.rgb(245, 158, 11)
             "low" -> Color.rgb(22, 163, 74)
             else -> Color.GRAY
@@ -191,30 +268,149 @@ class MainActivity : AppCompatActivity() {
                                 it.ref.lowercase().contains(query)
                     }
                 }
-                setupRecentReports()
+                bindRecentReportsList()
                 refreshMapMarkers()
             }
             override fun afterTextChanged(s: Editable?) {}
         })
     }
 
-    private fun setupRecentReports() {
-        val recentReportsList: ListView = findViewById(R.id.listRecentReports)
-        val reportsDisplayList = recentFaults.map {
-            "${it.emoji} ${it.title} • ${it.location} (${it.status})"
+    private fun loadFaults() {
+        faultsListener = repository.listenToAllFaults(
+            onChange = { faults ->
+                rawFirestoreFaults = faults
+                recalculateDistancesAndSort()
+            },
+            onFailure = { exception ->
+                Toast.makeText(
+                    this,
+                    "Failed to load reports: ${exception.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        )
+    }
+
+    /**
+     * Calculates distance to each fault from the citizen's current GPS location
+     * (or Table View center if GPS is unavailable) and sorts them nearest first.
+     */
+    private fun recalculateDistancesAndSort() {
+        // Exclude resolved faults from the home screen recent list and map
+        val activeFaults = rawFirestoreFaults.filter { !it.status.equals("Resolved", ignoreCase = true) }
+
+        if (activeFaults.isEmpty()) {
+            allLoadedFaults = emptyList()
+            recentFaults = emptyList()
+            bindRecentReportsList()
+            refreshMapMarkers()
+            return
         }
 
-        recentReportsList.adapter = object : ArrayAdapter<String>(
-            this,
-            android.R.layout.simple_list_item_1,
-            reportsDisplayList
-        ) {
-            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                val textView = super.getView(position, convertView, parent) as TextView
-                textView.textSize = 11.5f
-                textView.setTextColor(Color.parseColor("#475569"))
-                textView.setPadding(18, 12, 18, 12)
-                return textView
+        val refLat = userLocation?.latitude ?: defaultCenter.latitude
+        val refLon = userLocation?.longitude ?: defaultCenter.longitude
+        val dateFormat = SimpleDateFormat("dd MMM", Locale.ENGLISH)
+
+        allLoadedFaults = activeFaults.map { fault ->
+            val dist = FloatArray(1)
+            Location.distanceBetween(refLat, refLon, fault.latitude, fault.longitude, dist)
+            val meters = dist[0]
+
+            val distText = if (meters < 1000f) {
+                "${meters.toInt()}m away"
+            } else {
+                String.format(Locale.US, "%.1f km away", meters / 1000f)
+            }
+
+            val displayDate = fault.date.ifBlank { dateFormat.format(Date(fault.createdAt)) }
+
+            FaultPreview(
+                id = fault.id,
+                ref = fault.ref,
+                emoji = getFaultEmoji(fault.category),
+                title = fault.title,
+                location = fault.location,
+                status = fault.status,
+                priority = fault.priority,
+                department = fault.department,
+                category = fault.category,
+                dateString = displayDate,
+                description = fault.description,
+                lat = fault.latitude,
+                lon = fault.longitude,
+                confirmations = fault.confirmations,
+                imageUrl = fault.imageUrl,
+                distanceMeters = meters,
+                distanceText = distText
+            )
+        }.sortedBy { it.distanceMeters } // Nearest to citizen first
+
+        val query = findViewById<EditText>(R.id.searchBar).text.toString().trim().lowercase()
+        recentFaults = if (query.isEmpty()) {
+            allLoadedFaults
+        } else {
+            allLoadedFaults.filter {
+                it.title.lowercase().contains(query) ||
+                        it.location.lowercase().contains(query) ||
+                        it.category.lowercase().contains(query) ||
+                        it.ref.lowercase().contains(query)
+            }
+        }
+
+        bindRecentReportsList()
+        refreshMapMarkers()
+    }
+
+    /**
+     * Binds the nearest reports to the list using item_report.xml cards.
+     */
+    private fun bindRecentReportsList() {
+        if (recentFaults.isEmpty()) {
+            emptyRecentReports.visibility = View.VISIBLE
+            listRecentReports.visibility = View.GONE
+            return
+        }
+
+        emptyRecentReports.visibility = View.GONE
+        listRecentReports.visibility = View.VISIBLE
+
+        listRecentReports.adapter = object : BaseAdapter() {
+            override fun getCount(): Int = recentFaults.size
+            override fun getItem(position: Int): Any = recentFaults[position]
+            override fun getItemId(position: Int): Long = position.toLong()
+
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
+                val view = convertView ?: LayoutInflater.from(this@MainActivity)
+                    .inflate(R.layout.item_report, parent, false)
+
+                val fault = recentFaults[position]
+
+                view.findViewById<TextView>(R.id.tvReportRef).text =
+                    "${fault.ref} • ${fault.distanceText}"
+
+                view.findViewById<TextView>(R.id.tvReportTitle).text =
+                    "${fault.emoji} ${fault.title}"
+
+                view.findViewById<TextView>(R.id.tvReportLocation).text =
+                    "${fault.location} • ${fault.dateString}"
+
+                val statusView = view.findViewById<TextView>(R.id.tvReportStatus)
+                statusView.text = fault.status
+
+                val imgThumb = view.findViewById<ImageView>(R.id.reportImg)
+                if (fault.imageUrl.isNotBlank()) {
+                    Glide.with(this@MainActivity)
+                        .load(fault.imageUrl)
+                        .placeholder(android.R.drawable.ic_menu_gallery)
+                        .error(android.R.drawable.ic_menu_gallery)
+                        .centerCrop()
+                        .into(imgThumb)
+                } else {
+                    imgThumb.setImageResource(getFaultIcon(fault.category))
+                    imgThumb.scaleType = ImageView.ScaleType.CENTER_INSIDE
+                }
+
+                return view
             }
         }
 
@@ -225,7 +421,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        recentReportsList.setOnItemClickListener { _, _, position, _ ->
+        listRecentReports.setOnItemClickListener { _, _, position, _ ->
             val fault = recentFaults[position]
             val intent = Intent(this, TrackActivity::class.java).apply {
                 putExtra("EXTRA_FAULT_ID", fault.id)
@@ -238,12 +434,24 @@ class MainActivity : AppCompatActivity() {
                 putExtra("EXTRA_CATEGORY", fault.category)
                 putExtra("EXTRA_DATE", fault.dateString)
                 putExtra("EXTRA_DESCRIPTION", fault.description)
-                putExtra("EXTRA_IMAGE_URL", fault.imageUrl)
                 putExtra("EXTRA_LAT", fault.lat)
                 putExtra("EXTRA_LON", fault.lon)
                 putExtra("EXTRA_CONFIRMATIONS", fault.confirmations)
+                putExtra("EXTRA_IMAGE_URL", fault.imageUrl)
             }
             startActivity(intent)
+        }
+    }
+
+    private fun getFaultEmoji(category: String): String {
+        return when (category.trim().lowercase()) {
+            "roads" -> "🚧"
+            "water" -> "💧"
+            "electricity" -> "⚡"
+            "streetlights" -> "💡"
+            "waste" -> "🗑️"
+            "other" -> "❓"
+            else -> "📍"
         }
     }
 
@@ -321,60 +529,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadFaults() {
-        val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.ENGLISH)
-        faultsListener = repository.listenToAllFaults(
-            onChange = { faults ->
-                allLoadedFaults = faults.map { fault ->
-                    val displayDate = fault.date.ifBlank { dateFormat.format(Date(fault.createdAt)) }
-                    FaultPreview(
-                        id = fault.id,
-                        ref = fault.ref,
-                        emoji = getFaultEmoji(fault.category),
-                        title = fault.title,
-                        location = fault.location,
-                        status = fault.status,
-                        priority = fault.priority,
-                        department = fault.department,
-                        category = fault.category,
-                        dateString = displayDate,
-                        description = fault.description,
-                        imageUrl = fault.imageUrl,
-                        lat = fault.latitude,
-                        lon = fault.longitude,
-                        confirmations = fault.confirmations
-                    )
-                }
-                recentFaults = allLoadedFaults
-                setupRecentReports()
-                refreshMapMarkers()
-            },
-            onFailure = { exception ->
-                Toast.makeText(
-                    this,
-                    "Failed to load reports: ${exception.message}",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        )
-    }
-
-    private fun getFaultEmoji(category: String): String {
-        return when (category.trim().lowercase()) {
-            "roads" -> "🚧"
-            "water" -> "💧"
-            "electricity" -> "⚡"
-            "streetlights" -> "💡"
-            "waste" -> "🗑️"
-            "other" -> "❓"
-            else -> "📍"
-        }
-    }
-
     override fun onResume() {
         super.onResume()
         if (::map.isInitialized) map.onResume()
         checkAdminButtonVisibility()
+        updateUserLocation()
     }
 
     override fun onPause() {

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -23,6 +24,13 @@ class AdminLoginActivity : AppCompatActivity() {
         val passwordInput = findViewById<EditText>(R.id.etAdminPassword)
         val loginButton = findViewById<Button>(R.id.btnAdminLogin)
         val message = findViewById<TextView>(R.id.tvAdminLoginMessage)
+
+        findViewById<ImageButton>(R.id.btnBack).setOnClickListener {
+            startActivity(Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            })
+            finish()
+        }
 
         loginButton.setOnClickListener {
             val email = emailInput.text.toString().trim()

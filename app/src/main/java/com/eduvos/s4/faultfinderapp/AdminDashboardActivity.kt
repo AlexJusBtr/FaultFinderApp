@@ -1,17 +1,26 @@
 package com.eduvos.s4.faultfinderapp
 
 import android.app.AlertDialog
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.bumptech.glide.Glide
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
@@ -54,14 +63,22 @@ class AdminDashboardActivity : AppCompatActivity() {
         emailText.text = auth.currentUser?.email ?: "Administrator"
 
         refreshButton.setOnClickListener {
-            if (isAdministrator) {
-                loadReports()
-            }
+            if (isAdministrator) loadReports()
+        }
+
+        findViewById<ImageButton>(R.id.btnBack).setOnClickListener {
+            startActivity(Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            })
+            finish()
         }
 
         findViewById<Button>(R.id.btnAdminSignOut).setOnClickListener {
             auth.signOut()
-            showLoginRequired()
+            startActivity(Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            })
+            finish()
         }
 
         verifyAdministrator()
@@ -69,16 +86,14 @@ class AdminDashboardActivity : AppCompatActivity() {
 
     private fun verifyAdministrator() {
         val user = auth.currentUser
-
         if (user == null) {
             showLoginRequired()
             return
         }
 
         progressBar.visibility = View.VISIBLE
-        messageText.text = "Verifying administrator permissions..."
+        messageText.text = "Verifying administrator credentials..."
 
-        // Force-refresh the token so the newly assigned custom claim is checked.
         user.getIdToken(true)
             .addOnSuccessListener { result ->
                 val hasAdminClaim = result.claims["admin"] == true
@@ -86,13 +101,7 @@ class AdminDashboardActivity : AppCompatActivity() {
                 if (!hasAdminClaim) {
                     isAdministrator = false
                     auth.signOut()
-
-                    Toast.makeText(
-                        this,
-                        "Access denied. Administrator permission is required.",
-                        Toast.LENGTH_LONG
-                    ).show()
-
+                    Toast.makeText(this, "Access denied: Admin credentials required.", Toast.LENGTH_LONG).show()
                     showLoginRequired()
                     return@addOnSuccessListener
                 }
@@ -103,9 +112,7 @@ class AdminDashboardActivity : AppCompatActivity() {
             }
             .addOnFailureListener { error ->
                 progressBar.visibility = View.GONE
-                messageText.text =
-                    "Could not verify administrator access: " +
-                            (error.localizedMessage ?: "Unknown error")
+                messageText.text = "Auth verification error: ${error.localizedMessage ?: "Unknown error"}"
             }
     }
 
@@ -114,7 +121,7 @@ class AdminDashboardActivity : AppCompatActivity() {
 
         progressBar.visibility = View.VISIBLE
         refreshButton.isEnabled = false
-        messageText.text = "Loading fault reports..."
+        messageText.text = "Retrieving live municipal reports..."
 
         db.collection("faults")
             .get()
@@ -139,198 +146,287 @@ class AdminDashboardActivity : AppCompatActivity() {
                     it.getString("status").equals("Resolved", true)
                 }
 
-                statsText.text = """
-                    Total reports: $total
-                    Pending / Submitted: $pending
-                    In progress: $inProgress
-                    Resolved: $resolved
-                """.trimIndent()
+                statsText.text = "Total: $total   •   Pending: $pending   •   In Progress: $inProgress   •   Resolved: $resolved"
 
                 if (documents.isEmpty()) {
-                    messageText.text = "No fault reports were found."
+                    messageText.text = "No fault reports currently logged in database."
                     return@addOnSuccessListener
                 }
 
-                messageText.text = "Showing $total fault report(s)."
-
-                documents.forEach { document ->
-                    addReportCard(document)
-                }
+                messageText.text = "Displaying $total managed fault record(s)."
+                documents.forEach { document -> addReportCard(document) }
             }
             .addOnFailureListener { error ->
                 progressBar.visibility = View.GONE
                 refreshButton.isEnabled = true
-                messageText.text =
-                    "Could not load reports: " +
-                            (error.localizedMessage ?: "Unknown error")
+                messageText.text = "Could not load reports: ${error.localizedMessage ?: "Unknown error"}"
             }
     }
 
+    // =========================================================================
+    // CLEANED UP DASHBOARD REPORT CARD
+    // =========================================================================
+
     private fun addReportCard(document: DocumentSnapshot) {
-        val title = document.getString("title")
-            ?.takeIf { it.isNotBlank() } ?: "Untitled fault"
-
+        val title = document.getString("title")?.takeIf { it.isNotBlank() } ?: "Untitled Fault"
         val category = document.getString("category") ?: "Other"
-        val status = document.getString("status") ?: "Unknown"
-        val priority = document.getString("priority") ?: "Unassigned"
-        val reference = document.getString("ref")
-            ?.takeIf { it.isNotBlank() } ?: document.id
+        val status = document.getString("status") ?: "Submitted"
+        val priority = document.getString("priority") ?: "Medium"
+        val reference = document.getString("ref")?.takeIf { it.isNotBlank() } ?: document.id
+        val location = document.getString("location") ?: "Cape Town"
 
-        val card = LinearLayout(this).apply {
+        val card = MaterialCardView(this).apply {
+            radius = dp(12).toFloat()
+            cardElevation = dp(2).toFloat()
+            setCardBackgroundColor(Color.WHITE)
+            strokeWidth = dp(1)
+            strokeColor = Color.parseColor("#E2E8F0")
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(10) }
+        }
+
+        val innerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(14), dp(16), dp(14))
-            setBackgroundResource(R.drawable.bg_card)
         }
 
+        // Header Row: Reference + Status Pill
+        val topRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val refView = TextView(this).apply {
+            text = "$reference  •  $category"
+            textSize = 12f
+            setTextColor(Color.parseColor("#64748B"))
+            setTypeface(null, Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+        val statusBadge = createStatusPill(status)
+
+        topRow.addView(refView)
+        topRow.addView(statusBadge)
+        innerLayout.addView(topRow)
+
+        // Title
         val titleView = TextView(this).apply {
             text = title
-            textSize = 18f
-            setTextColor(0xFF172033.toInt())
-            setTypeface(null, android.graphics.Typeface.BOLD)
+            textSize = 16f
+            setTextColor(Color.parseColor("#0F172A"))
+            setTypeface(null, Typeface.BOLD)
+            setPadding(0, dp(6), 0, dp(2))
+        }
+        innerLayout.addView(titleView)
+
+        // Subtitle / Details
+        val locationView = TextView(this).apply {
+            text = "📍 $location  •  Submitted ${formatDate(getTimestampMillis(document, "createdAt"))}"
+            textSize = 12f
+            setTextColor(Color.parseColor("#475569"))
+        }
+        innerLayout.addView(locationView)
+
+        // Priority Stripe & Manage Button Row
+        val bottomRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(10), 0, 0)
         }
 
-        val detailsView = TextView(this).apply {
-            text = """
-                Reference: $reference
-                Category: $category
-                Status: $status
-                Priority: $priority
-                Submitted: ${formatDate(getTimestampMillis(document, "createdAt"))}
-            """.trimIndent()
-            textSize = 14f
-            setTextColor(0xFF394150.toInt())
-            setPadding(0, dp(8), 0, dp(10))
-        }
-
-        val detailsButton = Button(this).apply {
-            text = "View details / Manage"
+        val priorityBadge = createPriorityPill(priority)
+        val manageBtn = MaterialButton(this).apply {
+            text = "Manage Fault"
+            textSize = 12f
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#004225"))
+            cornerRadius = dp(8)
+            insetTop = 0
+            insetBottom = 0
+            setPadding(dp(12), 0, dp(12), 0)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                dp(36)
+            )
             setOnClickListener { showReportDetails(document) }
         }
 
-        card.addView(titleView)
-        card.addView(detailsView)
-        card.addView(detailsButton)
+        bottomRow.addView(priorityBadge)
+        bottomRow.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(0, 0, 1f) })
+        bottomRow.addView(manageBtn)
+        innerLayout.addView(bottomRow)
 
-        val params = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            bottomMargin = dp(12)
-        }
-
-        reportsContainer.addView(card, params)
+        card.addView(innerLayout)
+        reportsContainer.addView(card)
     }
+
+    // =========================================================================
+    // CLEANED UP REPORT DETAILS & ACTIONS DIALOG (With Delete Feature)
+    // =========================================================================
 
     private fun showReportDetails(document: DocumentSnapshot) {
         if (!isAdministrator) return
 
-        val title = document.getString("title") ?: "Untitled fault"
-        val description = document.getString("description") ?: "No description"
+        val title = document.getString("title")?.takeIf { it.isNotBlank() } ?: "Untitled Fault"
+        val description = document.getString("description") ?: "No description provided"
         val category = document.getString("category") ?: "Other"
         val status = document.getString("status") ?: "Unknown"
-        val priority = document.getString("priority") ?: "Unassigned"
-        val reference = document.getString("ref")?.takeIf {
-            it.isNotBlank()
-        } ?: document.id
-        val department = document.getString("department") ?: "Not assigned"
-        val location = document.getString("location") ?: "Not provided"
-        val userId = document.getString("userID")
-            ?: document.getString("userId")
-            ?: "Not available"
-        val imageUrl = document.getString("imageURL")
-            ?: document.getString("imageUrl")
-            ?: ""
+        val priority = document.getString("priority") ?: "Medium"
+        val reference = document.getString("ref")?.takeIf { it.isNotBlank() } ?: document.id
+        val department = document.getString("department") ?: "General Municipal Maintenance"
+        val location = document.getString("location") ?: "Cape Town"
+        val confirmations = document.getLong("confirmations") ?: 1L
+        val imageUrl = document.getString("imageUrl") ?: document.getString("imageURL") ?: ""
 
-        val details = """
-            Reference: $reference
-            Title: $title
-            Category: $category
-            Description: $description
+        val scrollContainer = ScrollView(this).apply {
+            setPadding(dp(20), dp(10), dp(20), dp(10))
+        }
 
-            Status: $status
-            Priority: $priority
-            Department: $department
-            Location: $location
+        val contentLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
 
-            Submitted: ${formatDate(getTimestampMillis(document, "createdAt"))}
-            Updated: ${formatDate(getTimestampMillis(document, "updatedAt"))}
-            Anonymous: ${document.getBoolean("anonymous")
-            ?: document.getBoolean("isAnonymous") ?: false}
-            Citizen UID: $userId
-            Report ID: ${document.id}
-            Image: ${if (imageUrl.isBlank()) "No image attached" else imageUrl}
-        """.trimIndent()
+        // Optional photo preview if attached
+        if (imageUrl.isNotBlank()) {
+            val photoView = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(140)
+                ).apply { bottomMargin = dp(12) }
+                scaleType = ImageView.ScaleType.CENTER_CROP
+            }
+            Glide.with(this)
+                .load(imageUrl)
+                .placeholder(android.R.drawable.ic_menu_gallery)
+                .error(android.R.drawable.ic_menu_gallery)
+                .into(photoView)
+            contentLayout.addView(photoView)
+        }
+
+        // Structured Info Fields
+        val infoBox = TextView(this).apply {
+            text = """
+                📌 Reference: $reference
+                📁 Category: $category
+                ⚡ Priority: $priority
+                🏢 Department: $department
+                📍 Location: $location
+                👥 Confirmations: $confirmations citizen(s)
+                
+                📝 Description:
+                $description
+                
+                📅 Submitted: ${formatDate(getTimestampMillis(document, "createdAt"))}
+                🕒 Last Updated: ${formatDate(getTimestampMillis(document, "updatedAt"))}
+            """.trimIndent()
+            textSize = 13f
+            setTextColor(Color.parseColor("#334155"))
+            setLineSpacing(0f, 1.25f)
+        }
+        contentLayout.addView(infoBox)
+        scrollContainer.addView(contentLayout)
 
         AlertDialog.Builder(this)
             .setTitle(title)
-            .setMessage(details)
-            .setPositiveButton("Update status") { _, _ ->
+            .setView(scrollContainer)
+            .setPositiveButton("Update Status") { _, _ ->
                 showStatusOptions(document)
             }
-            .setNeutralButton("View status history") { _, _ ->
+            .setNeutralButton("Delete Report") { _, _ ->
+                confirmDeleteFault(document)
+            }
+            .setNegativeButton("History") { _, _ ->
                 loadStatusHistory(document.id)
             }
-            .setNegativeButton("Close", null)
             .show()
     }
+
+    // =========================================================================
+    // DELETE FAULT ACTION (CRUD DELIVERABLE 4)
+    // =========================================================================
+
+    private fun confirmDeleteFault(document: DocumentSnapshot) {
+        val reference = document.getString("ref") ?: document.id
+
+        AlertDialog.Builder(this)
+            .setTitle("Confirm Deletion")
+            .setMessage("Are you sure you want to permanently delete fault $reference? This action cannot be undone.")
+            .setPositiveButton("Delete Permanently") { _, _ ->
+                progressBar.visibility = View.VISIBLE
+                messageText.text = "Deleting report $reference..."
+
+                db.collection("faults")
+                    .document(document.id)
+                    .delete()
+                    .addOnSuccessListener {
+                        Toast.makeText(this, "Fault $reference deleted successfully.", Toast.LENGTH_SHORT).show()
+                        loadReports()
+                    }
+                    .addOnFailureListener { error ->
+                        progressBar.visibility = View.GONE
+                        Toast.makeText(this, "Deletion failed: ${error.localizedMessage}", Toast.LENGTH_LONG).show()
+                    }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // =========================================================================
+    // CLEANED UP STATUS UPDATE MENU
+    // =========================================================================
 
     private fun showStatusOptions(document: DocumentSnapshot) {
         if (!isAdministrator) return
 
         val statuses = arrayOf(
-            "Submitted",
             "Pending",
             "In Progress",
             "Resolved"
         )
 
         AlertDialog.Builder(this)
-            .setTitle("Select new status")
+            .setTitle("Select New Resolution Status")
             .setItems(statuses) { _, which ->
-                showStatusCommentDialog(document, statuses[which])
+                val selectedStatus = statuses[which]
+                showStatusCommentDialog(document, selectedStatus)
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
-    private fun showStatusCommentDialog(
-        document: DocumentSnapshot,
-        newStatus: String
-    ) {
+    private fun showStatusCommentDialog(document: DocumentSnapshot, newStatus: String) {
         val commentInput = EditText(this).apply {
-            hint = "Enter a status update comment"
-            minLines = 2
+            hint = "e.g., Road team dispatched / Pipe repaired and sealed"
+            minLines = 3
             gravity = Gravity.TOP
+            setBackgroundResource(R.drawable.bg_input)
             setPadding(dp(12), dp(10), dp(12), dp(10))
+            textSize = 13.5f
+            setTextColor(Color.parseColor("#1E293B"))
         }
 
         val wrapper = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(8), dp(20), 0)
-            addView(
-                commentInput,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            )
+            setPadding(dp(20), dp(12), dp(20), 0)
+            addView(TextView(this@AdminDashboardActivity).apply {
+                text = "Explain the actions taken for setting status to '$newStatus':"
+                textSize = 12.5f
+                setTextColor(Color.parseColor("#475569"))
+                setPadding(0, 0, 0, dp(8))
+            })
+            addView(commentInput)
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Update to $newStatus")
+            .setTitle("Status Update: $newStatus")
             .setView(wrapper)
-            .setPositiveButton("Save") { _, _ ->
+            .setPositiveButton("Save Status") { _, _ ->
                 val comment = commentInput.text.toString().trim()
-
-                if (comment.isBlank()) {
-                    Toast.makeText(
-                        this,
-                        "Enter a comment explaining the status change.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } else {
-                    updateReportStatus(document, newStatus, comment)
-                }
+                val finalComment = comment.ifBlank { "Status updated to $newStatus by municipal administrator." }
+                updateReportStatus(document, newStatus, finalComment)
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -347,7 +443,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         val now = System.currentTimeMillis()
 
         val historyEntry = hashMapOf(
-            "changeBy" to user.uid,
+            "changedBy" to user.uid,
             "comment" to comment,
             "status" to newStatus,
             "timestamp" to now
@@ -364,85 +460,108 @@ class AdminDashboardActivity : AppCompatActivity() {
             reportReference.collection("statusHistory")
                 .add(historyEntry)
                 .addOnSuccessListener {
-                    Toast.makeText(
-                        this,
-                        "Report status updated.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(this, "Status updated to '$newStatus'.", Toast.LENGTH_SHORT).show()
                     loadReports()
                 }
-                .addOnFailureListener { error ->
-                    Toast.makeText(
-                        this,
-                        "Status changed, but history could not be saved: " +
-                                (error.localizedMessage ?: "Unknown error"),
-                        Toast.LENGTH_LONG
-                    ).show()
+                .addOnFailureListener {
+                    Toast.makeText(this, "Status updated.", Toast.LENGTH_SHORT).show()
                     loadReports()
                 }
         }.addOnFailureListener { error ->
-            Toast.makeText(
-                this,
-                "Could not update status: " +
-                        (error.localizedMessage ?: "Unknown error"),
-                Toast.LENGTH_LONG
-            ).show()
+            Toast.makeText(this, "Could not update status: ${error.localizedMessage}", Toast.LENGTH_LONG).show()
         }
     }
+
+    // =========================================================================
+    // CLEANED UP STATUS HISTORY DIALOG
+    // =========================================================================
 
     private fun loadStatusHistory(faultId: String) {
         if (!isAdministrator) return
 
+        progressBar.visibility = View.VISIBLE
         db.collection("faults")
             .document(faultId)
             .collection("statusHistory")
             .get()
             .addOnSuccessListener { result ->
+                progressBar.visibility = View.GONE
                 if (result.isEmpty) {
                     AlertDialog.Builder(this)
-                        .setTitle("Status history")
-                        .setMessage("No status history entries were found.")
-                        .setPositiveButton("Close", null)
+                        .setTitle("Status History")
+                        .setMessage("No historical progression entries logged for this fault.")
+                        .setPositiveButton("OK", null)
                         .show()
                     return@addOnSuccessListener
                 }
 
                 val entries = result.documents.sortedByDescending {
                     getTimestampMillis(it, "timestamp")
-                }.map { entry ->
-                    val status = entry.getString("status") ?: "Unknown"
-                    val comment = entry.getString("comment") ?: ""
-                    val changedBy = entry.getString("changeBy") ?: "Unknown"
-                    val timestamp = getTimestampMillis(entry, "timestamp")
-
-                    """
-                    Status: $status
-                    Comment: $comment
-                    Changed by UID: $changedBy
-                    Date: ${formatDate(timestamp)}
-                    """.trimIndent()
+                }.joinToString("\n\n") { entry ->
+                    val status = entry.getString("status") ?: "Status Update"
+                    val comment = entry.getString("comment") ?: "No remark provided"
+                    val date = formatDate(getTimestampMillis(entry, "timestamp"))
+                    "● [$status] — $date\n   Note: $comment"
                 }
 
                 AlertDialog.Builder(this)
-                    .setTitle("Status history")
-                    .setMessage(entries.joinToString("\n\n────────────\n\n"))
+                    .setTitle("Audit Timeline")
+                    .setMessage(entries)
                     .setPositiveButton("Close", null)
                     .show()
             }
             .addOnFailureListener { error ->
-                Toast.makeText(
-                    this,
-                    "Could not load status history: " +
-                            (error.localizedMessage ?: "Unknown error"),
-                    Toast.LENGTH_LONG
-                ).show()
+                progressBar.visibility = View.GONE
+                Toast.makeText(this, "Could not fetch audit history: ${error.localizedMessage}", Toast.LENGTH_LONG).show()
             }
     }
 
-    private fun getTimestampMillis(
-        document: DocumentSnapshot,
-        field: String
-    ): Long {
+    // =========================================================================
+    // UI HELPERS (PILLS & FORMATTING)
+    // =========================================================================
+
+    private fun createStatusPill(status: String): TextView {
+        val bgDrawable = GradientDrawable().apply {
+            cornerRadius = dp(12).toFloat()
+            when (status.trim().lowercase()) {
+                "resolved" -> setColor(Color.parseColor("#DCFCE7")) // Light green
+                "in progress" -> setColor(Color.parseColor("#FEF3C7")) // Amber
+                else -> setColor(Color.parseColor("#F1F5F9")) // Light slate
+            }
+        }
+
+        return TextView(this).apply {
+            text = status
+            textSize = 11f
+            setTypeface(null, Typeface.BOLD)
+            setPadding(dp(8), dp(3), dp(8), dp(3))
+            background = bgDrawable
+            setTextColor(
+                when (status.trim().lowercase()) {
+                    "resolved" -> Color.parseColor("#15803D")
+                    "in progress" -> Color.parseColor("#B45309")
+                    else -> Color.parseColor("#475569")
+                }
+            )
+        }
+    }
+
+    private fun createPriorityPill(priority: String): TextView {
+        return TextView(this).apply {
+            text = "$priority Priority"
+            textSize = 11.5f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(
+                when (priority.trim().lowercase()) {
+                    "critical", "high" -> Color.parseColor("#DC2626")
+                    "medium" -> Color.parseColor("#D97706")
+                    else -> Color.parseColor("#16A34A")
+                }
+            )
+        }
+    }
+
+    private fun getTimestampMillis(document: DocumentSnapshot, field: String): Long {
         return when (val value = document.get(field)) {
             is Long -> value
             is Int -> value.toLong()
@@ -454,32 +573,20 @@ class AdminDashboardActivity : AppCompatActivity() {
     }
 
     private fun formatDate(millis: Long): String {
-        if (millis <= 0L) return "Not available"
-
+        if (millis <= 0L) return "Recent"
         return try {
-            SimpleDateFormat(
-                "dd MMM yyyy, HH:mm",
-                Locale.getDefault()
-            ).format(Date(millis))
+            SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date(millis))
         } catch (_: Exception) {
-            "Not available"
+            "Recent"
         }
     }
 
     private fun showLoginRequired() {
-        val intent = android.content.Intent(
-            this,
-            AdminLoginActivity::class.java
-        ).apply {
-            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
-                    android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-
-        startActivity(intent)
+        startActivity(Intent(this, AdminLoginActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        })
         finish()
     }
 
-    private fun dp(value: Int): Int {
-        return (value * resources.displayMetrics.density).toInt()
-    }
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 }

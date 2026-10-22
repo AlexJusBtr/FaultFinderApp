@@ -30,10 +30,10 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 
-
 /**
  * Full-screen interactive OpenStreetMap activity supporting live Firestore fault markers,
- * category filtering, GPS location picking, and deep-linked fault focusing.
+ * automatic filtering of resolved faults, category filtering, GPS location picking,
+ * and deep-linked fault focusing.
  */
 class MapActivity : AppCompatActivity() {
 
@@ -168,10 +168,15 @@ class MapActivity : AppCompatActivity() {
         // Always keep the tap listener overlay at index 0
         setupMapTapListener()
 
-        val pinsToShow = if (categoryFilter == null) {
+        // Filter category and automatically hide resolved faults from general map display
+        val filteredByCategory = if (categoryFilter == null) {
             allMapFaults
         } else {
             allMapFaults.filter { it.category.equals(categoryFilter, ignoreCase = true) }
+        }
+
+        val pinsToShow = filteredByCategory.filter {
+            !it.status.equals("Resolved", ignoreCase = true)
         }
 
         pinsToShow.forEach { pin ->
@@ -180,30 +185,25 @@ class MapActivity : AppCompatActivity() {
                 pinColor = getPriorityColor(pin.priority),
                 iconResource = getFaultIcon(pin.category)
             )
+
             val marker = Marker(map).apply {
                 position = pin.coord
                 title = "${pin.title} (${pin.ref})"
-                snippet =
-                    "${pin.category} • ${pin.status} • ${pin.priority} Priority"
-
+                snippet = "${pin.category} • ${pin.status} • ${pin.priority} Priority"
                 icon = markerDrawable
-                setAnchor(
-                    Marker.ANCHOR_CENTER,
-                    Marker.ANCHOR_BOTTOM
-                )            }
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            }
             map.overlays.add(marker)
         }
 
-        // If launched from TrackActivity ("See on Map"), highlight the focused marker
+        // If launched from TrackActivity ("See on Map"), ensure focused fault is visible and highlighted
         if (intent.hasExtra("FOCUS_LAT")) {
             val focusLat = intent.getDoubleExtra("FOCUS_LAT", defaultCenter.latitude)
             val focusLon = intent.getDoubleExtra("FOCUS_LON", defaultCenter.longitude)
             val focusTitle = intent.getStringExtra("FOCUS_TITLE") ?: "Selected Fault"
             val focusStatus = intent.getStringExtra("FOCUS_STATUS") ?: "In Progress"
-
             val focusedPoint = GeoPoint(focusLat, focusLon)
 
-// Find the existing marker at the selected fault's coordinates
             val existingMarker = map.overlays
                 .filterIsInstance<Marker>()
                 .firstOrNull { marker ->
@@ -212,11 +212,20 @@ class MapActivity : AppCompatActivity() {
                 }
 
             if (existingMarker != null) {
-                // Reuse the existing custom marker
                 map.controller.animateTo(focusedPoint)
                 existingMarker.showInfoWindow()
+            } else {
+                // Pin was resolved or filtered; render dedicated focus marker
+                val focusMarker = Marker(map).apply {
+                    position = focusedPoint
+                    title = focusTitle
+                    snippet = "Status: $focusStatus"
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                }
+                map.overlays.add(focusMarker)
+                map.controller.animateTo(focusedPoint)
+                focusMarker.showInfoWindow()
             }
-
         }
 
         map.invalidate()
@@ -354,7 +363,7 @@ class MapActivity : AppCompatActivity() {
 
     private fun getPriorityColor(priority: String): Int {
         return when (priority.trim().lowercase()) {
-            "high" -> Color.rgb(220, 38, 38)
+            "critical", "high" -> Color.rgb(220, 38, 38)
             "medium" -> Color.rgb(245, 158, 11)
             "low" -> Color.rgb(22, 163, 74)
             else -> Color.GRAY
