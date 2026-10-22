@@ -7,8 +7,10 @@ import android.location.Location
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
-import android.widget.ArrayAdapter
+import android.view.ViewGroup
+import android.widget.BaseAdapter
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -17,6 +19,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.RadioGroup
+import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -27,17 +30,18 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.bumptech.glide.Glide
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import java.io.File
 import java.util.Locale
 
 /**
- * Activity hosting both the Fault Reporting submission form and the live Nearby & History
- * duplicate-check list using a single segmented layout (activity_report.xml).
+ * Activity hosting both the Fault Reporting submission form (uploading photos via Cloudinary)
+ * and the live Nearby & History duplicate-check list using activity_report.xml.
  */
 class ReportActivity : AppCompatActivity() {
 
-    private lateinit var layoutReportForm: LinearLayout
+    private lateinit var layoutReportForm: ScrollView
     private lateinit var layoutNearbyList: LinearLayout
     private lateinit var tvTabReport: TextView
     private lateinit var tvTabNearby: TextView
@@ -48,20 +52,24 @@ class ReportActivity : AppCompatActivity() {
     private lateinit var etLocation: EditText
     private lateinit var spinnerCategory: Spinner
     private lateinit var cbAnonymous: CheckBox
+    private lateinit var emptyNearbyText: TextView
+    private lateinit var listNearby: ListView
 
     private lateinit var fabMain: FloatingActionButton
     private lateinit var fabLeft: FloatingActionButton
     private lateinit var fabDiag: FloatingActionButton
     private lateinit var fabTop: FloatingActionButton
     private var isFabMenuOpen = false
+
     private var selectedPhotoUri: Uri? = null
     private var takenPhoto: Uri? = null
     private var selectedLatitude: Double? = null
     private var selectedLongitude: Double? = null
-    private val repository = FirebaseRepository()
 
-    private val defaultLat = -33.8120
+    private val repository = FirebaseRepository()
+    private val defaultLat = -33.8120 // Table View / Parklands center
     private val defaultLon = 18.4900
+
     private var allFetchedFaults: List<Fault> = emptyList()
     private var displayedNearbyFaults: List<Fault> = emptyList()
 
@@ -94,7 +102,7 @@ class ReportActivity : AppCompatActivity() {
             if (!latitude.isNaN() && !longitude.isNaN()) {
                 selectedLatitude = latitude
                 selectedLongitude = longitude
-                etLocation.setText("Finding address...")
+                etLocation.setText("Resolving address...")
 
                 getAddressFromCoordinates(
                     latitude = latitude,
@@ -108,7 +116,7 @@ class ReportActivity : AppCompatActivity() {
                         )
                         Toast.makeText(
                             this,
-                            "Coordinates captured from map.",
+                            "Coordinates captured from map pin.",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
@@ -159,6 +167,8 @@ class ReportActivity : AppCompatActivity() {
         etLocation = findViewById(R.id.etLocation)
         spinnerCategory = findViewById(R.id.spinnerCategory)
         cbAnonymous = findViewById(R.id.cbAnonymous)
+        emptyNearbyText = findViewById(R.id.emptyNearbyText)
+        listNearby = findViewById(R.id.listNearby)
 
         findViewById<LinearLayout>(R.id.photoBox).setOnClickListener {
             showPhotoOptions()
@@ -208,10 +218,6 @@ class ReportActivity : AppCompatActivity() {
         loadLiveNearbyFaults()
     }
 
-    /**
-     * Loads live faults from Firestore for the Nearby & History tab and supports
-     * toggling between "Near me" (sorted by distance) and "All history" (sorted by date).
-     */
     private fun setupNearbyListView() {
         val nearbyToggle = findViewById<RadioGroup>(R.id.nearbyToggle)
         nearbyToggle.setOnCheckedChangeListener { _, _ ->
@@ -232,8 +238,11 @@ class ReportActivity : AppCompatActivity() {
         )
     }
 
+    /**
+     * Renders nearby/historical reports into item_report.xml cards and loads Cloudinary
+     * image URLs using Glide.
+     */
     private fun renderNearbyList() {
-        val listNearby: ListView = findViewById(R.id.listNearby)
         val nearbyToggle = findViewById<RadioGroup>(R.id.nearbyToggle)
         val refLat = selectedLatitude ?: defaultLat
         val refLon = selectedLongitude ?: defaultLon
@@ -248,19 +257,58 @@ class ReportActivity : AppCompatActivity() {
             allFetchedFaults.sortedByDescending { it.createdAt }
         }
 
-        val displayRows = displayedNearbyFaults.map { fault ->
-            val dist = FloatArray(1)
-            Location.distanceBetween(refLat, refLon, fault.latitude, fault.longitude, dist)
-            val distStr = if (dist[0] < 1000f) {
-                "${dist[0].toInt()}m away"
-            } else {
-                String.format(Locale.US, "%.1fkm away", dist[0] / 1000f)
-            }
-            val emoji = getCategoryEmoji(fault.category)
-            "$emoji ${fault.title} • ${fault.location} ($distStr • ${fault.status})"
+        if (displayedNearbyFaults.isEmpty()) {
+            emptyNearbyText.visibility = View.VISIBLE
+            listNearby.visibility = View.GONE
+            return
         }
 
-        listNearby.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, displayRows)
+        emptyNearbyText.visibility = View.GONE
+        listNearby.visibility = View.VISIBLE
+
+        listNearby.adapter = object : BaseAdapter() {
+            override fun getCount(): Int = displayedNearbyFaults.size
+            override fun getItem(position: Int): Any = displayedNearbyFaults[position]
+            override fun getItemId(position: Int): Long = position.toLong()
+
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
+                val view = convertView ?: LayoutInflater.from(this@ReportActivity)
+                    .inflate(R.layout.item_report, parent, false)
+
+                val fault = displayedNearbyFaults[position]
+                val dist = FloatArray(1)
+                Location.distanceBetween(refLat, refLon, fault.latitude, fault.longitude, dist)
+                val distStr = if (dist[0] < 1000f) {
+                    "${dist[0].toInt()}m away"
+                } else {
+                    String.format(Locale.US, "%.1fkm away", dist[0] / 1000f)
+                }
+
+                val emoji = getCategoryEmoji(fault.category)
+                view.findViewById<TextView>(R.id.tvReportRef).text =
+                    "${fault.ref} • ${fault.priority} Priority ($distStr)"
+                view.findViewById<TextView>(R.id.tvReportTitle).text =
+                    "$emoji ${fault.title}"
+                view.findViewById<TextView>(R.id.tvReportLocation).text =
+                    "${fault.location} • ${fault.date}"
+                view.findViewById<TextView>(R.id.tvReportStatus).text = fault.status
+
+                val imgThumb = view.findViewById<ImageView>(R.id.reportImg)
+                if (fault.imageUrl.isNotBlank()) {
+                    Glide.with(this@ReportActivity)
+                        .load(fault.imageUrl)
+                        .placeholder(android.R.drawable.ic_menu_gallery)
+                        .error(android.R.drawable.ic_menu_gallery)
+                        .centerCrop()
+                        .into(imgThumb)
+                } else {
+                    imgThumb.setImageResource(android.R.drawable.ic_menu_gallery)
+                    imgThumb.scaleType = ImageView.ScaleType.CENTER_INSIDE
+                }
+
+                return view
+            }
+        }
 
         listNearby.setOnItemClickListener { _, _, position, _ ->
             val fault = displayedNearbyFaults[position]
@@ -275,9 +323,11 @@ class ReportActivity : AppCompatActivity() {
                 putExtra("EXTRA_CATEGORY", fault.category)
                 putExtra("EXTRA_DATE", fault.date)
                 putExtra("EXTRA_DESCRIPTION", fault.description)
+                putExtra("EXTRA_IMAGE_URL", fault.imageUrl)
                 putExtra("EXTRA_LAT", fault.latitude)
                 putExtra("EXTRA_LON", fault.longitude)
                 putExtra("EXTRA_CONFIRMATIONS", fault.confirmations)
+                putExtra("EXTRA_IMAGE_URL", fault.imageUrl)
             }
             startActivity(intent)
         }
@@ -308,6 +358,7 @@ class ReportActivity : AppCompatActivity() {
             .setView(previewImage)
             .setPositiveButton("Use Photo") { _, _ ->
                 selectedPhotoUri = uri
+
                 val imageView = findViewById<ImageView>(R.id.imgFaultPhoto)
                 imageView.setImageURI(uri)
                 imageView.scaleType = ImageView.ScaleType.CENTER_CROP
@@ -321,10 +372,6 @@ class ReportActivity : AppCompatActivity() {
             .show()
     }
 
-    /**
-     * Validates form inputs, resolves coordinates if typed manually, checks for 100m
-     * spatial duplicates, and submits the fault report to Firebase.
-     */
     private fun setupSubmission() {
         val submitBtn = findViewById<Button>(R.id.submitButton)
         submitBtn.setOnClickListener {
@@ -416,7 +463,6 @@ class ReportActivity : AppCompatActivity() {
                     )
                 },
                 onFailure = {
-                    // Proceed with submission even if duplicate query fails
                     submitFault(
                         title = title,
                         category = category,
@@ -431,6 +477,10 @@ class ReportActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Submits the fault report and uploads any selected photo via Cloudinary inside
+     * repository.createFaultWithImage.
+     */
     private fun submitFault(
         title: String,
         category: String,

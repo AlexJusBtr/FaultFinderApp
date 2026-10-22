@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.ListView
 import android.widget.RadioGroup
 import android.widget.TextView
@@ -16,11 +17,13 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.bumptech.glide.Glide
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 
 /**
  * Activity displaying the current user's submitted reports from Cloud Firestore,
- * summary metric cards (Total, Open, Fixed), status filtering, and CRUD actions (Update/Delete).
+ * summary metric cards (Total, Open, Fixed), status filtering, Glide thumbnails,
+ * and CRUD actions (Update/Delete).
  */
 class MyReportsActivity : AppCompatActivity() {
 
@@ -159,11 +162,24 @@ class MyReportsActivity : AppCompatActivity() {
                 view.findViewById<TextView>(R.id.tvReportLocation).text = "${item.location} • ${item.date}"
                 view.findViewById<TextView>(R.id.tvReportStatus).text = item.status
 
+                val imgThumb = view.findViewById<ImageView>(R.id.reportImg)
+                if (item.imageUrl.isNotBlank()) {
+                    Glide.with(this@MyReportsActivity)
+                        .load(item.imageUrl)
+                        .placeholder(android.R.drawable.ic_menu_gallery)
+                        .error(android.R.drawable.ic_menu_gallery)
+                        .centerCrop()
+                        .into(imgThumb)
+                } else {
+                    imgThumb.setImageResource(android.R.drawable.ic_menu_gallery)
+                    imgThumb.scaleType = ImageView.ScaleType.CENTER_INSIDE
+                }
+
                 return view
             }
         }
 
-        // Single tap opens TrackActivity details
+        // Single tap opens TrackActivity details with Cloudinary image URL
         listMyReports.setOnItemClickListener { _, _, position, _ ->
             val item = filteredReports[position]
             val intent = Intent(this, TrackActivity::class.java).apply {
@@ -177,9 +193,11 @@ class MyReportsActivity : AppCompatActivity() {
                 putExtra("EXTRA_CATEGORY", item.category)
                 putExtra("EXTRA_DATE", item.date)
                 putExtra("EXTRA_DESCRIPTION", item.description)
+                putExtra("EXTRA_IMAGE_URL", item.imageUrl)
                 putExtra("EXTRA_LAT", item.latitude)
                 putExtra("EXTRA_LON", item.longitude)
                 putExtra("EXTRA_CONFIRMATIONS", item.confirmations)
+                putExtra("EXTRA_IMAGE_URL", item.imageUrl)
             }
             startActivity(intent)
         }

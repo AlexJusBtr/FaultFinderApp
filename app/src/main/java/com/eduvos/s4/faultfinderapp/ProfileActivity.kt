@@ -1,19 +1,19 @@
 package com.eduvos.s4.faultfinderapp
 
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
-import android.content.res.ColorStateList
-import android.graphics.Color
-import com.google.android.material.button.MaterialButton
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 
 class ProfileActivity : AppCompatActivity() {
@@ -36,7 +36,6 @@ class ProfileActivity : AppCompatActivity() {
             insets
         }
 
-        // Home Reset Rule
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener {
             startActivity(Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -49,8 +48,11 @@ class ProfileActivity : AppCompatActivity() {
             finish()
         }
 
-        refreshProfileState()
+        findViewById<View>(R.id.btnAdminPortal).setOnClickListener {
+            startActivity(Intent(this, AdminDashboardActivity::class.java))
+        }
 
+        refreshProfileState()
         setupSpeedDial()
     }
 
@@ -116,11 +118,13 @@ class ProfileActivity : AppCompatActivity() {
         val tvName = findViewById<TextView>(R.id.tvProfileName)
         val tvEmail = findViewById<TextView>(R.id.tvProfileEmail)
         val btnAuthAction = findViewById<MaterialButton>(R.id.btnLogout)
+        val btnAdminPortal = findViewById<MaterialButton>(R.id.btnAdminPortal)
 
         if (repository.isLoggedIn()) {
             repository.getCurrentUser(
                 onSuccess = { user ->
-                    tvName.text = user.name.ifBlank { "Citizen User" }
+                    val badge = if (user.role.equals("admin", true) || user.role.equals("municipal", true)) " (Admin)" else ""
+                    tvName.text = (user.name.ifBlank { "Citizen User" }) + badge
                     tvEmail.text = user.email
                 },
                 onFailure = {
@@ -128,6 +132,11 @@ class ProfileActivity : AppCompatActivity() {
                     tvEmail.text = "Logged in"
                 }
             )
+
+            // Only show the red Admin Portal button if the logged-in account is an Admin
+            repository.isAdminUser { isAdmin ->
+                btnAdminPortal.visibility = if (isAdmin) View.VISIBLE else View.GONE
+            }
 
             btnAuthAction.text = "Log Out"
             btnAuthAction.setTextColor(Color.parseColor("#EF4444"))
@@ -143,6 +152,7 @@ class ProfileActivity : AppCompatActivity() {
         } else {
             tvName.text = "Guest Citizen"
             tvEmail.text = "Not logged in"
+            btnAdminPortal.visibility = View.GONE
 
             btnAuthAction.text = "Log In / Sign Up"
             btnAuthAction.setTextColor(Color.WHITE)

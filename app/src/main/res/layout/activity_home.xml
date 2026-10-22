@@ -12,7 +12,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Top App Bar (Profile Button) -->
+        <!-- Top App Bar (With Red Admin Button + Profile Button) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
@@ -38,6 +38,30 @@
                 android:textColor="@color/green"
                 android:textSize="22sp"
                 android:textStyle="bold" />
+
+            <!-- Red Admin Button: Only visible when an Admin account is logged in -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnAdminHeader"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:layout_marginEnd="6dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:text="Admin"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF"
+                android:textSize="11.5sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                app:backgroundTint="#DC2626"
+                app:cornerRadius="8dp"
+                app:icon="@android:drawable/ic_menu_manage"
+                app:iconPadding="4dp"
+                app:iconSize="15dp"
+                app:iconTint="#FFFFFF" />
 
             <ImageButton
                 android:id="@+id/btnProfile"
@@ -120,7 +144,7 @@
                 android:layout_height="match_parent" />
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Quick Report Section (Renamed from Categories) -->
+        <!-- Quick Report Section -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

@@ -1,13 +1,24 @@
 package com.eduvos.s4.faultfinderapp
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.location.Location
 import android.net.Uri
+import android.util.Base64
+import android.widget.ImageView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.storage.FirebaseStorage
+import java.io.ByteArrayOutputStream
+import com.cloudinary.android.MediaManager
+import com.cloudinary.android.callback.UploadCallback
+import com.cloudinary.android.callback.ErrorInfo
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -15,9 +26,8 @@ import java.util.UUID
 import kotlin.random.Random
 
 /**
- * Centralized backend repository managing Firebase Authentication, Cloud Storage,
- * and Cloud Firestore CRUD operations, including automated rule-based fault prioritisation
- * and 100m GPS spatial duplicate detection.
+ * Centralized backend repository managing Firebase Authentication, Base64/Storage images,
+ * Admin role checks, and Cloud Firestore CRUD operations.
  */
 class FirebaseRepository {
 
@@ -26,7 +36,44 @@ class FirebaseRepository {
     private val storage = FirebaseStorage.getInstance()
 
     // =========================================================================
-    // 1. AUTHENTICATION & USER MANAGEMENT
+    // 1. IMAGE ENCODING & RENDERING HELPERS (Fixes Images Not Saving/Showing)
+    // =========================================================================
+
+    companion object {
+        /**
+         * Compresses a selected gallery or camera Uri into a compact Base64 JPEG string
+         * so the photo is stored directly inside the Firestore document and never fails.
+         */
+        fun encodeUriToBase64(context: Context, uri: Uri): String {
+            return try {
+                val inputStream = context.contentResolver.openInputStream(uri) ?: return ""
+                val original = BitmapFactory.decodeStream(inputStream)
+                inputStream.close()
+                if (original == null) return ""
+
+                val maxDim = 480
+                val ratio = minOf(
+                    maxDim.toFloat() / original.width,
+                    maxDim.toFloat() / original.height,
+                    1f
+                )
+                val width = (original.width * ratio).toInt().coerceAtLeast(1)
+                val height = (original.height * ratio).toInt().coerceAtLeast(1)
+                val scaled = Bitmap.createScaledBitmap(original, width, height, true)
+
+                val output = ByteArrayOutputStream()
+                scaled.compress(Bitmap.CompressFormat.JPEG, 65, output)
+                "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+            } catch (e: Exception) {
+                ""
+            }
+        }
+
+
+    }
+
+    // =========================================================================
+    // 2. AUTHENTICATION & ADMIN ROLE VERIFICATION
     // =========================================================================
 
     fun registerUser(
@@ -41,7 +88,11 @@ class FirebaseRepository {
             return
         }
 
-        auth.createUserWithEmailAndPassword(email.trim(), password)
+        val cleanEmail = email.trim()
+        // Automatically grant admin role if registering with an admin email (e.g. admin@faultfinder.co.za)
+        val assignedRole = if (cleanEmail.lowercase().contains("admin")) "admin" else "citizen"
+
+        auth.createUserWithEmailAndPassword(cleanEmail, password)
             .addOnSuccessListener {
                 val firebaseUser = auth.currentUser
                 if (firebaseUser == null) {
@@ -52,8 +103,8 @@ class FirebaseRepository {
                 val user = User(
                     userId = firebaseUser.uid,
                     name = name.trim(),
-                    email = email.trim(),
-                    role = "citizen",
+                    email = cleanEmail,
+                    role = assignedRole,
                     createdAt = System.currentTimeMillis()
                 )
 
@@ -94,6 +145,44 @@ class FirebaseRepository {
         return auth.currentUser?.uid
     }
 
+    /**
+     * Checks whether the currently logged-in user is an Administrator.
+     * Grants admin access if their Firestore user document has role == "admin" or "municipal",
+     * OR if their email address contains "admin", OR if they have a custom token claim.
+     */
+    fun isAdminUser(onResult: (Boolean) -> Unit) {
+        val currentUser = auth.currentUser
+        if (currentUser == null) {
+            onResult(false)
+            return
+        }
+
+        val email = currentUser.email?.lowercase() ?: ""
+        if (email.contains("admin")) {
+            onResult(true)
+            return
+        }
+
+        db.collection("users")
+            .document(currentUser.uid)
+            .get()
+            .addOnSuccessListener { doc ->
+                val role = doc.getString("role")?.lowercase() ?: "citizen"
+                if (role == "admin" || role == "municipal") {
+                    onResult(true)
+                } else {
+                    currentUser.getIdToken(false)
+                        .addOnSuccessListener { tokenResult ->
+                            onResult(tokenResult.claims["admin"] == true)
+                        }
+                        .addOnFailureListener { onResult(false) }
+                }
+            }
+            .addOnFailureListener {
+                onResult(false)
+            }
+    }
+
     fun getCurrentUser(
         onSuccess: (User) -> Unit,
         onFailure: (Exception) -> Unit
@@ -112,13 +201,13 @@ class FirebaseRepository {
                 if (user != null) {
                     onSuccess(user)
                 } else {
-                    // Fallback profile if Firestore user doc wasn't created yet
+                    val email = auth.currentUser?.email ?: ""
                     onSuccess(
                         User(
                             userId = userId,
-                            name = auth.currentUser?.email?.substringBefore("@") ?: "Citizen",
-                            email = auth.currentUser?.email ?: "",
-                            role = "citizen"
+                            name = email.substringBefore("@").ifBlank { "Citizen" },
+                            email = email,
+                            role = if (email.lowercase().contains("admin")) "admin" else "citizen"
                         )
                     )
                 }
@@ -127,13 +216,9 @@ class FirebaseRepository {
     }
 
     // =========================================================================
-    // 2. AUTOMATED TRIAGING & DEPARTMENT ROUTING (TTF Framework)
+    // 3. AUTOMATED TRIAGING & DEPARTMENT ROUTING
     // =========================================================================
 
-    /**
-     * Rule-based fault prioritisation algorithm (Deliverable 2 Section 2.3):
-     * Evaluates hazard keywords and infrastructure category to assign priority automatically.
-     */
     fun calculatePriority(category: String, title: String, description: String): String {
         val text = "$title $description".lowercase()
         val criticalKeywords = listOf("live wire", "exposed cable", "electrocut", "sewage overflow", "sinkhole", "collapse")
@@ -149,9 +234,6 @@ class FirebaseRepository {
         }
     }
 
-    /**
-     * Maps a fault category to the responsible City of Cape Town municipal department.
-     */
     fun mapCategoryToDepartment(category: String): String {
         return when (category.trim().lowercase()) {
             "roads" -> "Roads & Stormwater"
@@ -164,40 +246,71 @@ class FirebaseRepository {
     }
 
     // =========================================================================
-    // 3. IMAGE UPLOAD & FAULT CRUD OPERATIONS
+    // 4. FAULT CRUD OPERATIONS (CREATE, READ, UPDATE, DELETE)
     // =========================================================================
 
-    fun uploadFaultImage(
+    private fun uploadFaultImage(
         imageUri: Uri,
         onSuccess: (String) -> Unit,
         onFailure: (Exception) -> Unit
     ) {
-        val userId = auth.currentUser?.uid
-        if (userId == null) {
-            onFailure(Exception("You must be logged in"))
-            return
-        }
+        val preset = CloudinaryConfig.UPLOAD_PRESET
 
-        val filename = "${UUID.randomUUID()}.jpg"
-        val imageRef = storage.reference
-            .child("fault_images")
-            .child(userId)
-            .child(filename)
+        MediaManager.get()
+            .upload(imageUri)
+            .unsigned(preset)
+            .callback(object : UploadCallback {
 
-        imageRef.putFile(imageUri)
-            .continueWithTask { task ->
-                if (!task.isSuccessful) {
-                    throw task.exception ?: Exception("Image upload failed")
+                override fun onStart(requestId: String?) {
+                    // Upload started
                 }
-                imageRef.downloadUrl
-            }
-            .addOnSuccessListener { uri -> onSuccess(uri.toString()) }
-            .addOnFailureListener(onFailure)
+
+                override fun onProgress(
+                    requestId: String?,
+                    bytes: Long,
+                    totalBytes: Long
+                ) {
+                    // Optional: update upload progress
+                }
+
+                override fun onSuccess(
+                    requestId: String?,
+                    resultData: MutableMap<Any?, Any?>?
+                ) {
+                    val secureUrl =
+                        resultData?.get("secure_url") as? String
+
+                    if (!secureUrl.isNullOrBlank()) {
+                        onSuccess(secureUrl)
+                    } else {
+                        onFailure(
+                            Exception("Cloudinary returned no secure image URL.")
+                        )
+                    }
+                }
+
+                override fun onError(
+                    requestId: String?,
+                    error: ErrorInfo?
+                ) {
+                    onFailure(
+                        Exception(
+                            "Cloudinary upload failed: " +
+                                    (error?.description ?: "Unknown error")
+                        )
+                    )
+                }
+
+                override fun onReschedule(
+                    requestId: String?,
+                    error: ErrorInfo?
+                ) {
+                    // Cloudinary may retry the upload automatically.
+                }
+            })
+            .dispatch()
     }
 
-    /**
-     * CREATE: Writes a complete Fault document into Firestore and logs its initial StatusHistory.
-     */
     fun createFault(
         title: String = "",
         category: String,
@@ -280,10 +393,12 @@ class FirebaseRepository {
         location: String,
         isAnonymous: Boolean = false,
         imageUri: Uri?,
+        encodedBase64Image: String = "",
         onSuccess: (String) -> Unit,
         onFailure: (Exception) -> Unit
     ) {
-        if (imageUri == null) {
+        // If we already encoded the image into Base64, save immediately so it never fails!
+        if (encodedBase64Image.isNotBlank() || imageUri == null) {
             createFault(
                 title = title,
                 category = category,
@@ -292,7 +407,7 @@ class FirebaseRepository {
                 longitude = longitude,
                 location = location,
                 isAnonymous = isAnonymous,
-                imageUrl = "",
+                imageUrl = encodedBase64Image,
                 onSuccess = onSuccess,
                 onFailure = onFailure
             )
@@ -301,7 +416,7 @@ class FirebaseRepository {
 
         uploadFaultImage(
             imageUri = imageUri,
-            onSuccess = { imageUrl ->
+            onSuccess = { uploadedUrl ->
                 createFault(
                     title = title,
                     category = category,
@@ -310,32 +425,18 @@ class FirebaseRepository {
                     longitude = longitude,
                     location = location,
                     isAnonymous = isAnonymous,
-                    imageUrl = imageUrl,
+                    imageUrl = uploadedUrl,
                     onSuccess = onSuccess,
                     onFailure = onFailure
                 )
             },
-            onFailure = {
-                // Fallback: If Storage upload fails, still save the fault document so submission never breaks
-                createFault(
-                    title = title,
-                    category = category,
-                    description = description,
-                    latitude = latitude,
-                    longitude = longitude,
-                    location = location,
-                    isAnonymous = isAnonymous,
-                    imageUrl = "",
-                    onSuccess = onSuccess,
-                    onFailure = onFailure
-                )
+            onFailure = { exception ->
+                // Do not create a fault if its selected image fails to upload.
+                onFailure(exception)
             }
         )
     }
 
-    /**
-     * READ (All): Fetches all faults ordered newest first. Seeds 4 Cape Town faults if empty.
-     */
     fun getAllFaults(
         onSuccess: (List<Fault>) -> Unit,
         onFailure: (Exception) -> Unit
@@ -354,9 +455,6 @@ class FirebaseRepository {
             .addOnFailureListener(onFailure)
     }
 
-    /**
-     * Real-time Snapshot Listener for all faults. Seeds initial faults if collection is empty.
-     */
     fun listenToAllFaults(
         onChange: (List<Fault>) -> Unit,
         onFailure: (Exception) -> Unit
@@ -378,9 +476,6 @@ class FirebaseRepository {
             }
     }
 
-    /**
-     * READ (Current User): Fetches faults submitted by the logged-in user for MyReportsActivity.
-     */
     fun getMyFaults(
         onSuccess: (List<Fault>) -> Unit,
         onFailure: (Exception) -> Unit
@@ -461,9 +556,6 @@ class FirebaseRepository {
             .addOnFailureListener(onFailure)
     }
 
-    /**
-     * UPDATE: Updates a fault's status and records a StatusHistory entry.
-     */
     fun updateFaultStatus(
         faultId: String,
         newStatus: String,
@@ -483,6 +575,7 @@ class FirebaseRepository {
             "Validated",
             "Assigned",
             "In Progress",
+            "Resolution Requested",
             "Resolved"
         )
 
@@ -515,9 +608,6 @@ class FirebaseRepository {
             .addOnFailureListener(onFailure)
     }
 
-    /**
-     * DELETE: Deletes a fault report document from Firestore (completes full CRUD).
-     */
     fun deleteFault(
         faultId: String,
         onSuccess: () -> Unit,
@@ -565,7 +655,7 @@ class FirebaseRepository {
     }
 
     // =========================================================================
-    // 4. COMMENTS & CITIZEN ENGAGEMENT
+    // 5. COMMENTS & DUPLICATE DETECTION
     // =========================================================================
 
     fun addFaultComment(
@@ -580,12 +670,7 @@ class FirebaseRepository {
             return
         }
 
-        if (faultId.isBlank()) {
-            onFailure(Exception("Fault ID is required"))
-            return
-        }
-
-        if (message.isBlank()) {
+        if (faultId.isBlank() || message.isBlank()) {
             onFailure(Exception("Comment cannot be empty"))
             return
         }
@@ -618,27 +703,6 @@ class FirebaseRepository {
             .addOnFailureListener(onFailure)
     }
 
-    fun getFaultComments(
-        faultId: String,
-        onSuccess: (List<FaultComment>) -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        if (faultId.isBlank()) {
-            onFailure(Exception("Fault ID is required"))
-            return
-        }
-
-        db.collection("faults")
-            .document(faultId)
-            .collection("comments")
-            .orderBy("createdAt", Query.Direction.ASCENDING)
-            .get()
-            .addOnSuccessListener { result ->
-                onSuccess(result.toObjects(FaultComment::class.java))
-            }
-            .addOnFailureListener(onFailure)
-    }
-
     fun listenToFaultComments(
         faultId: String,
         onChange: (List<FaultComment>) -> Unit,
@@ -658,150 +722,6 @@ class FirebaseRepository {
             }
     }
 
-    // =========================================================================
-    // 5. MUNICIPAL WORKFLOW & DUPLICATE DETECTION
-    // =========================================================================
-
-    fun isMunicipalUser(
-        onSuccess: (Boolean) -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        val userId = auth.currentUser?.uid
-        if (userId == null) {
-            onFailure(Exception("No user is logged in"))
-            return
-        }
-
-        db.collection("users")
-            .document(userId)
-            .get()
-            .addOnSuccessListener { document ->
-                val role = document.getString("role") ?: "citizen"
-                onSuccess(role.equals("municipal", ignoreCase = true))
-            }
-            .addOnFailureListener(onFailure)
-    }
-
-    fun validateFault(
-        faultId: String,
-        comment: String = "Fault validated",
-        onSuccess: () -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        updateFaultStatus(faultId, "Validated", comment, onSuccess, onFailure)
-    }
-
-    fun assignFaultToDepartment(
-        faultId: String,
-        department: String,
-        onSuccess: () -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        val userId = auth.currentUser?.uid ?: "municipal"
-        if (faultId.isBlank() || department.isBlank()) {
-            onFailure(Exception("Fault ID and Department are required"))
-            return
-        }
-
-        val reference = db.collection("faults").document(faultId)
-        val now = System.currentTimeMillis()
-
-        reference.update(
-            mapOf(
-                "department" to department.trim(),
-                "status" to "Assigned",
-                "updatedAt" to now
-            )
-        )
-            .addOnSuccessListener {
-                val history = StatusHistory(
-                    status = "Assigned",
-                    changedBy = userId,
-                    timestamp = now,
-                    comment = "Assigned to ${department.trim()}"
-                )
-                reference.collection("statusHistory")
-                    .add(history)
-                    .addOnSuccessListener { onSuccess() }
-                    .addOnFailureListener(onFailure)
-            }
-            .addOnFailureListener(onFailure)
-    }
-
-    fun startFaultWork(
-        faultId: String,
-        comment: String = "Work started",
-        onSuccess: () -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        updateFaultStatus(faultId, "In Progress", comment, onSuccess, onFailure)
-    }
-
-    fun resolveFault(
-        faultId: String,
-        comment: String = "Fault resolved",
-        onSuccess: () -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        updateFaultStatus(faultId, "Resolved", comment, onSuccess, onFailure)
-    }
-
-    fun getActiveFaults(
-        onSuccess: (List<Fault>) -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        db.collection("faults")
-            .get()
-            .addOnSuccessListener { result ->
-                val faults = result.toObjects(Fault::class.java)
-                    .filter { it.status != "Resolved" && !it.isDuplicate }
-                    .sortedByDescending { it.createdAt }
-                onSuccess(normalizeFaultList(faults))
-            }
-            .addOnFailureListener(onFailure)
-    }
-
-    fun getFaultsByStatus(
-        status: String,
-        onSuccess: (List<Fault>) -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        db.collection("faults")
-            .whereEqualTo("status", status)
-            .get()
-            .addOnSuccessListener { result ->
-                val faults = result.toObjects(Fault::class.java)
-                    .sortedByDescending { it.createdAt }
-                onSuccess(normalizeFaultList(faults))
-            }
-            .addOnFailureListener(onFailure)
-    }
-
-    fun getFaultsByDepartment(
-        department: String,
-        onSuccess: (List<Fault>) -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        if (department.isBlank()) {
-            onFailure(Exception("Department is required"))
-            return
-        }
-
-        db.collection("faults")
-            .whereEqualTo("department", department)
-            .get()
-            .addOnSuccessListener { result ->
-                val faults = result.toObjects(Fault::class.java)
-                    .sortedByDescending { it.createdAt }
-                onSuccess(normalizeFaultList(faults))
-            }
-            .addOnFailureListener(onFailure)
-    }
-
-    /**
-     * Spatial Duplicate Detection (Deliverable 2 Section 2.2):
-     * Finds unresolved faults in the same category within 100m using GPS coordinates.
-     */
     fun findPotentialDuplicates(
         category: String,
         latitude: Double,
@@ -835,18 +755,6 @@ class FirebaseRepository {
                             distance[0] <= distanceThresholdMetres
                         }
                     }
-                    .sortedBy { existingFault ->
-                        val distance = FloatArray(1)
-                        Location.distanceBetween(
-                            latitude,
-                            longitude,
-                            existingFault.latitude,
-                            existingFault.longitude,
-                            distance
-                        )
-                        distance[0]
-                    }
-
                 onSuccess(normalizeFaultList(possibleDuplicates))
             }
             .addOnFailureListener(onFailure)
@@ -877,10 +785,6 @@ class FirebaseRepository {
         )
     }
 
-    /**
-     * Increments the confirmation count on an existing fault when a citizen chooses
-     * "Confirm Existing Fault" instead of submitting a duplicate report.
-     */
     fun confirmExistingFault(
         faultId: String,
         onSuccess: () -> Unit,
@@ -902,87 +806,6 @@ class FirebaseRepository {
             .addOnFailureListener(onFailure)
     }
 
-    fun markFaultAsDuplicate(
-        duplicateFaultId: String,
-        originalFaultId: String,
-        onSuccess: () -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        val userId = auth.currentUser?.uid ?: "citizen"
-        if (duplicateFaultId.isBlank() || originalFaultId.isBlank() || duplicateFaultId == originalFaultId) {
-            onFailure(Exception("Invalid duplicate fault IDs"))
-            return
-        }
-
-        val duplicateReference = db.collection("faults").document(duplicateFaultId)
-        val now = System.currentTimeMillis()
-
-        duplicateReference.update(
-            mapOf(
-                "isDuplicate" to true,
-                "duplicateOfFaultId" to originalFaultId,
-                "updatedAt" to now
-            )
-        )
-            .addOnSuccessListener {
-                val history = StatusHistory(
-                    status = "Submitted",
-                    changedBy = userId,
-                    timestamp = now,
-                    comment = "Marked as duplicate of fault $originalFaultId"
-                )
-                duplicateReference.collection("statusHistory")
-                    .add(history)
-                    .addOnSuccessListener { onSuccess() }
-                    .addOnFailureListener(onFailure)
-            }
-            .addOnFailureListener(onFailure)
-    }
-
-    fun removeDuplicateMark(
-        faultId: String,
-        onSuccess: () -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        val userId = auth.currentUser?.uid ?: "citizen"
-        if (faultId.isBlank()) {
-            onFailure(Exception("Fault ID is required"))
-            return
-        }
-
-        val reference = db.collection("faults").document(faultId)
-        val now = System.currentTimeMillis()
-
-        reference.update(
-            mapOf(
-                "isDuplicate" to false,
-                "duplicateOfFaultId" to "",
-                "updatedAt" to now
-            )
-        )
-            .addOnSuccessListener {
-                val history = StatusHistory(
-                    status = "Pending",
-                    changedBy = userId,
-                    timestamp = now,
-                    comment = "Duplicate classification removed"
-                )
-                reference.collection("statusHistory")
-                    .add(history)
-                    .addOnSuccessListener { onSuccess() }
-                    .addOnFailureListener(onFailure)
-            }
-            .addOnFailureListener(onFailure)
-    }
-
-    // =========================================================================
-    // 6. HELPERS: NORMALIZATION & INITIAL DATA SEEDING
-    // =========================================================================
-
-    /**
-     * Ensures older Firestore documents that were saved without a title, ref, date, or
-     * department still display cleanly in the UI.
-     */
     private fun normalizeFaultList(list: List<Fault>): List<Fault> {
         val formatter = SimpleDateFormat("dd MMM yyyy", Locale.ENGLISH)
         return list.mapIndexed { index, fault ->
@@ -990,8 +813,7 @@ class FirebaseRepository {
                 fault.title = "${fault.category.ifBlank { "Municipal" }} Fault"
             }
             if (fault.ref.isBlank()) {
-                val suffix = (1001 + index).toString()
-                fault.ref = "#CT-$suffix"
+                fault.ref = "#CT-${1001 + index}"
             }
             if (fault.date.isBlank()) {
                 fault.date = formatter.format(Date(fault.createdAt))
@@ -1006,9 +828,6 @@ class FirebaseRepository {
         }
     }
 
-    /**
-     * Seeds 4 realistic Cape Town faults if the Firestore collection is completely empty.
-     */
     private fun seedInitialFaultsIfEmpty(onComplete: (List<Fault>) -> Unit) {
         val uid = auth.currentUser?.uid ?: "demo_citizen"
         val now = System.currentTimeMillis()

@@ -30,6 +30,7 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 
+
 /**
  * Full-screen interactive OpenStreetMap activity supporting live Firestore fault markers,
  * category filtering, GPS location picking, and deep-linked fault focusing.
@@ -174,11 +175,22 @@ class MapActivity : AppCompatActivity() {
         }
 
         pinsToShow.forEach { pin ->
+            val markerDrawable = FaultMapMarkerDrawable(
+                context = this,
+                pinColor = getPriorityColor(pin.priority),
+                iconResource = getFaultIcon(pin.category)
+            )
             val marker = Marker(map).apply {
                 position = pin.coord
                 title = "${pin.title} (${pin.ref})"
-                snippet = "${pin.category} • ${pin.status} • ${pin.priority} Priority"
-            }
+                snippet =
+                    "${pin.category} • ${pin.status} • ${pin.priority} Priority"
+
+                icon = markerDrawable
+                setAnchor(
+                    Marker.ANCHOR_CENTER,
+                    Marker.ANCHOR_BOTTOM
+                )            }
             map.overlays.add(marker)
         }
 
@@ -189,13 +201,22 @@ class MapActivity : AppCompatActivity() {
             val focusTitle = intent.getStringExtra("FOCUS_TITLE") ?: "Selected Fault"
             val focusStatus = intent.getStringExtra("FOCUS_STATUS") ?: "In Progress"
 
-            val focusMarker = Marker(map).apply {
-                position = GeoPoint(focusLat, focusLon)
-                title = focusTitle
-                snippet = "Status: $focusStatus"
+            val focusedPoint = GeoPoint(focusLat, focusLon)
+
+// Find the existing marker at the selected fault's coordinates
+            val existingMarker = map.overlays
+                .filterIsInstance<Marker>()
+                .firstOrNull { marker ->
+                    marker.position.latitude == focusedPoint.latitude &&
+                            marker.position.longitude == focusedPoint.longitude
+                }
+
+            if (existingMarker != null) {
+                // Reuse the existing custom marker
+                map.controller.animateTo(focusedPoint)
+                existingMarker.showInfoWindow()
             }
-            map.overlays.add(focusMarker)
-            focusMarker.showInfoWindow()
+
         }
 
         map.invalidate()
@@ -329,6 +350,26 @@ class MapActivity : AppCompatActivity() {
         }
 
         map.overlays.add(0, MapEventsOverlay(receiver))
+    }
+
+    private fun getPriorityColor(priority: String): Int {
+        return when (priority.trim().lowercase()) {
+            "high" -> Color.rgb(220, 38, 38)
+            "medium" -> Color.rgb(245, 158, 11)
+            "low" -> Color.rgb(22, 163, 74)
+            else -> Color.GRAY
+        }
+    }
+
+    private fun getFaultIcon(category: String): Int {
+        return when (category.trim().lowercase()) {
+            "roads" -> R.drawable.ic_fault_roadwork
+            "water" -> R.drawable.ic_fault_water
+            "electricity" -> R.drawable.ic_fault_electricity
+            "streetlights" -> R.drawable.ic_fault_streetlights
+            "waste" -> R.drawable.ic_fault_waste
+            else -> R.drawable.ic_fault_default
+        }
     }
 
     override fun onResume() { super.onResume(); map.onResume() }

@@ -15,6 +15,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.firestore.ListenerRegistration
+import android.view.View
+import android.widget.ImageView
+import com.bumptech.glide.Glide
+
 
 /**
  * Activity responsible for displaying full details of a selected fault report,
@@ -49,6 +53,7 @@ class TrackActivity : AppCompatActivity() {
         }
 
         populateReportDetails()
+        loadFaultPhoto()
 
         findViewById<Button>(R.id.btnViewOnMap).setOnClickListener {
             val lat = intent.getDoubleExtra("EXTRA_LAT", -33.8120)
@@ -274,6 +279,55 @@ class TrackActivity : AppCompatActivity() {
         }
 
         dialog.show()
+    }
+    private fun loadFaultPhoto() {
+        val imageView = findViewById<ImageView>(R.id.imgDetailPhoto)
+        val imageUrl = intent.getStringExtra("EXTRA_IMAGE_URL").orEmpty()
+
+        // First try the image URL passed from the previous screen.
+        if (imageUrl.isNotBlank()) {
+            displayFaultPhoto(imageUrl)
+            return
+        }
+
+        // If no URL was passed, retrieve it from the Firestore fault record.
+        val id = intent.getStringExtra("EXTRA_FAULT_ID").orEmpty()
+
+        if (id.isBlank()) {
+            imageView.visibility = View.GONE
+            return
+        }
+
+        repository.getFaultById(
+            faultId = id,
+            onSuccess = { fault ->
+                runOnUiThread {
+                    if (fault.imageUrl.isNotBlank()) {
+                        displayFaultPhoto(fault.imageUrl)
+                    } else {
+                        imageView.visibility = View.GONE
+                    }
+                }
+            },
+            onFailure = {
+                runOnUiThread {
+                    imageView.visibility = View.GONE
+                }
+            }
+        )
+    }
+
+    private fun displayFaultPhoto(imageUrl: String) {
+        val imageView = findViewById<ImageView>(R.id.imgDetailPhoto)
+
+        imageView.visibility = View.VISIBLE
+
+        Glide.with(this)
+            .load(imageUrl)
+            .placeholder(android.R.drawable.ic_menu_gallery)
+            .error(android.R.drawable.ic_menu_gallery)
+            .centerCrop()
+            .into(imageView)
     }
 
     override fun onDestroy() {

@@ -19,6 +19,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.firebase.firestore.ListenerRegistration
 import org.osmdroid.config.Configuration
@@ -31,10 +32,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * Home dashboard activity featuring an embedded OpenStreetMap preview, real-time search bar,
- * quick-category reporting buttons, live Firestore recent reports, and speed-dial navigation.
- */
 class MainActivity : AppCompatActivity() {
 
     data class FaultPreview(
@@ -49,6 +46,7 @@ class MainActivity : AppCompatActivity() {
         val category: String,
         val dateString: String,
         val description: String,
+        val imageUrl: String,
         val lat: Double,
         val lon: Double,
         val confirmations: Int
@@ -59,7 +57,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fabReport: FloatingActionButton
     private lateinit var fabMap: FloatingActionButton
     private lateinit var fabTracker: FloatingActionButton
-    private val defaultCenter = GeoPoint(-33.8120, 18.4900) // Table View / Parklands area center
+    private val defaultCenter = GeoPoint(-33.8120, 18.4900)
     private val repository = FirebaseRepository()
     private var isFabMenuOpen = false
     private var faultsListener: ListenerRegistration? = null
@@ -92,6 +90,17 @@ class MainActivity : AppCompatActivity() {
         loadFaults()
         setupSpeedDial()
         setupHeaderListeners()
+        checkAdminButtonVisibility()
+    }
+
+    private fun checkAdminButtonVisibility() {
+        val btnAdminHeader = findViewById<MaterialButton>(R.id.btnAdminHeader)
+        repository.isAdminUser { isAdmin ->
+            btnAdminHeader.visibility = if (isAdmin) View.VISIBLE else View.GONE
+        }
+        btnAdminHeader.setOnClickListener {
+            startActivity(Intent(this, AdminDashboardActivity::class.java))
+        }
     }
 
     private fun setupMap() {
@@ -121,19 +130,51 @@ class MainActivity : AppCompatActivity() {
         map.overlays.clear()
 
         recentFaults.forEach { fault ->
+            val markerDrawable = FaultMapMarkerDrawable(
+                context = this,
+                pinColor = getPriorityColor(fault.priority),
+                iconResource = getFaultIcon(fault.category)
+            )
             val marker = Marker(map).apply {
                 position = GeoPoint(fault.lat, fault.lon)
                 title = "${fault.title} (${fault.ref})"
-                snippet = "${fault.category} • ${fault.status} • ${fault.priority} Priority"
-            }
+                snippet =
+                    "${fault.category} • ${fault.status} • ${fault.priority} Priority"
+
+                icon = markerDrawable
+                setAnchor(
+                    Marker.ANCHOR_CENTER,
+                    Marker.ANCHOR_BOTTOM
+                )            }
             map.overlays.add(marker)
         }
         map.invalidate()
     }
 
     /**
-     * Wires the top search bar to filter recent reports and map markers in real time.
-     */
+     * these 2 functions decide which color and icon to use for each fault based on priority and category.
+     * this only applies to the map on main screen.
+     * */
+    private fun getPriorityColor(priority: String): Int {
+        return when (priority.trim().lowercase()) {
+            "high" -> Color.rgb(220, 38, 38)
+            "medium" -> Color.rgb(245, 158, 11)
+            "low" -> Color.rgb(22, 163, 74)
+            else -> Color.GRAY
+        }
+    }
+
+    private fun getFaultIcon(category: String): Int {
+        return when (category.trim().lowercase()) {
+            "roads" -> R.drawable.ic_fault_roadwork
+            "water" -> R.drawable.ic_fault_water
+            "electricity" -> R.drawable.ic_fault_electricity
+            "streetlights" -> R.drawable.ic_fault_streetlights
+            "waste" -> R.drawable.ic_fault_waste
+            else -> R.drawable.ic_fault_default
+        }
+    }
+
     private fun setupSearchBar() {
         val searchBar = findViewById<EditText>(R.id.searchBar)
         searchBar.addTextChangedListener(object : TextWatcher {
@@ -197,6 +238,7 @@ class MainActivity : AppCompatActivity() {
                 putExtra("EXTRA_CATEGORY", fault.category)
                 putExtra("EXTRA_DATE", fault.dateString)
                 putExtra("EXTRA_DESCRIPTION", fault.description)
+                putExtra("EXTRA_IMAGE_URL", fault.imageUrl)
                 putExtra("EXTRA_LAT", fault.lat)
                 putExtra("EXTRA_LON", fault.lon)
                 putExtra("EXTRA_CONFIRMATIONS", fault.confirmations)
@@ -297,6 +339,7 @@ class MainActivity : AppCompatActivity() {
                         category = fault.category,
                         dateString = displayDate,
                         description = fault.description,
+                        imageUrl = fault.imageUrl,
                         lat = fault.latitude,
                         lon = fault.longitude,
                         confirmations = fault.confirmations
@@ -331,6 +374,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (::map.isInitialized) map.onResume()
+        checkAdminButtonVisibility()
     }
 
     override fun onPause() {
