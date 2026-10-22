@@ -15,7 +15,8 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.FaultFinderApp">
+        android:theme="@style/Theme.FaultFinderApp"
+        android:name=".FaultFinderApp">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -34,8 +35,6 @@
                 android:resource="@xml/file_paths"/>
 
         </provider>
-
-
         <activity android:name=".MyReportsActivity"
             android:exported="false" />
         <activity android:name=".ReportActivity"
@@ -52,6 +51,16 @@
             android:exported="false" />
         <activity
             android:name=".TrackActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AuthActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AdminLoginActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".AdminDashboardActivity"
             android:exported="false" />
     </application>
 

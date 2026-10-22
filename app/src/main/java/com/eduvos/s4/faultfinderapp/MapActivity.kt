@@ -1,59 +1,62 @@
 package com.eduvos.s4.faultfinderapp
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.os.Bundle
 import android.widget.ImageButton
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import org.osmdroid.config.Configuration
+import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 
-
-//imports for the selecting location
-import android.Manifest
-import android.content.pm.PackageManager
-import android.location.Location
-import android.location.LocationListener
-import android.location.LocationManager
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import org.osmdroid.events.MapEventsReceiver
-import org.osmdroid.views.overlay.MapEventsOverlay
-
 /**
- * Full-screen interactive OpenStreetMap activity supporting category filtering
- * and deep-linked fault focusing from TrackActivity ("See on Map").
+ * Full-screen interactive OpenStreetMap activity supporting live Firestore fault markers,
+ * automatic filtering of resolved faults, category filtering, GPS location picking,
+ * and deep-linked fault focusing.
  */
 class MapActivity : AppCompatActivity() {
 
     data class MapFaultPin(
+        val id: String,
         val ref: String,
         val coord: GeoPoint,
         val title: String,
         val category: String,
-        val status: String
+        val status: String,
+        val priority: String
     )
 
     private lateinit var map: MapView
     private val defaultCenter = GeoPoint(-33.8120, 18.4900)
+    private val repository = FirebaseRepository()
+    private var allMapFaults = listOf<MapFaultPin>()
+    private var activeCategoryFilter: String? = null
+
     private val requestLocationPermission =
         registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) { permissions ->
-
             val granted =
                 permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                         permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
@@ -68,13 +71,6 @@ class MapActivity : AppCompatActivity() {
                 ).show()
             }
         }
-
-    private val allMapFaults = listOf(
-        MapFaultPin("#CT-0001", GeoPoint(-33.8267, 18.4912), "Pothole on Main Rd", "Roads", "Pending"),
-        MapFaultPin("#CT-0002", GeoPoint(-33.8075, 18.4735), "Burst Pipe", "Water", "In Progress"),
-        MapFaultPin("#CT-0003", GeoPoint(-33.7965, 18.5042), "Streetlight Out", "Streetlights", "Resolved"),
-        MapFaultPin("#CT-0004", GeoPoint(-33.8012, 18.5180), "Illegal Dumping", "Waste", "Pending")
-    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -92,10 +88,8 @@ class MapActivity : AppCompatActivity() {
             insets
         }
 
-        // If opened from TrackActivity ("See on Map"), simply finish() to go back to the report details;
-        // otherwise follow the Home Reset Rule.
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener {
-            if (intent.hasExtra("FOCUS_LAT")) {
+            if (intent.hasExtra("FOCUS_LAT") || intent.getBooleanExtra("PICK_LOCATION", false)) {
                 finish()
             } else {
                 startActivity(Intent(this, MainActivity::class.java).apply {
@@ -111,18 +105,17 @@ class MapActivity : AppCompatActivity() {
         }
 
         setupMap()
-        setupMapTapListener()
+        loadLiveFaultPins()
+
         if (intent.getBooleanExtra("PICK_LOCATION", false)) {
+            Toast.makeText(this, "Tap anywhere on the map to select the fault location", Toast.LENGTH_LONG).show()
             requestCurrentLocation()
         }
+
         setupCategoryFilters()
         setupFloatingControls()
     }
 
-    /**
-     * Initializes the full-screen OpenStreetMap view, renders fault pins, and focuses on
-     * a specific pin if launched via "See on Map" from TrackActivity.
-     */
     private fun setupMap() {
         map = findViewById(R.id.fullMapView)
         map.setTileSource(TileSourceFactory.MAPNIK)
@@ -134,60 +127,110 @@ class MapActivity : AppCompatActivity() {
         val colorMatrix = ColorMatrix().apply { setSaturation(0.15f) }
         map.overlayManager.tilesOverlay.setColorFilter(ColorMatrixColorFilter(colorMatrix))
 
-        renderMarkers(null)
-
-        // Check if TrackActivity requested focusing on a specific fault coordinate
         if (intent.hasExtra("FOCUS_LAT")) {
             val focusLat = intent.getDoubleExtra("FOCUS_LAT", defaultCenter.latitude)
             val focusLon = intent.getDoubleExtra("FOCUS_LON", defaultCenter.longitude)
-            val focusTitle = intent.getStringExtra("FOCUS_TITLE") ?: "Selected Fault"
-            val focusStatus = intent.getStringExtra("FOCUS_STATUS") ?: "In Progress"
-
             val focusPoint = GeoPoint(focusLat, focusLon)
-            val focusMarker = Marker(map).apply {
-                position = focusPoint
-                title = focusTitle
-                snippet = "Status: $focusStatus"
-            }
-            map.overlays.add(focusMarker)
-            focusMarker.showInfoWindow()
-
             map.controller.setZoom(17.0)
             map.controller.setCenter(focusPoint)
         } else {
             map.controller.setZoom(13.0)
             map.controller.setCenter(defaultCenter)
-
         }
     }
 
+    private fun loadLiveFaultPins() {
+        repository.getAllFaults(
+            onSuccess = { faults ->
+                allMapFaults = faults.map { fault ->
+                    MapFaultPin(
+                        id = fault.id,
+                        ref = fault.ref,
+                        coord = GeoPoint(fault.latitude, fault.longitude),
+                        title = fault.title,
+                        category = fault.category,
+                        status = fault.status,
+                        priority = fault.priority
+                    )
+                }
+                renderMarkers(activeCategoryFilter)
+            },
+            onFailure = {
+                renderMarkers(activeCategoryFilter)
+            }
+        )
+    }
 
-    /**
-     * Renders map markers filtered by category (or all markers when categoryFilter is null).
-     */
     private fun renderMarkers(categoryFilter: String?) {
+        activeCategoryFilter = categoryFilter
         map.overlays.clear()
 
-        val pinsToShow = if (categoryFilter == null) {
+        // Always keep the tap listener overlay at index 0
+        setupMapTapListener()
+
+        // Filter category and automatically hide resolved faults from general map display
+        val filteredByCategory = if (categoryFilter == null) {
             allMapFaults
         } else {
             allMapFaults.filter { it.category.equals(categoryFilter, ignoreCase = true) }
         }
 
+        val pinsToShow = filteredByCategory.filter {
+            !it.status.equals("Resolved", ignoreCase = true)
+        }
+
         pinsToShow.forEach { pin ->
+            val markerDrawable = FaultMapMarkerDrawable(
+                context = this,
+                pinColor = getPriorityColor(pin.priority),
+                iconResource = getFaultIcon(pin.category)
+            )
+
             val marker = Marker(map).apply {
                 position = pin.coord
                 title = "${pin.title} (${pin.ref})"
-                snippet = "${pin.category} • ${pin.status}"
+                snippet = "${pin.category} • ${pin.status} • ${pin.priority} Priority"
+                icon = markerDrawable
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             }
             map.overlays.add(marker)
         }
+
+        // If launched from TrackActivity ("See on Map"), ensure focused fault is visible and highlighted
+        if (intent.hasExtra("FOCUS_LAT")) {
+            val focusLat = intent.getDoubleExtra("FOCUS_LAT", defaultCenter.latitude)
+            val focusLon = intent.getDoubleExtra("FOCUS_LON", defaultCenter.longitude)
+            val focusTitle = intent.getStringExtra("FOCUS_TITLE") ?: "Selected Fault"
+            val focusStatus = intent.getStringExtra("FOCUS_STATUS") ?: "In Progress"
+            val focusedPoint = GeoPoint(focusLat, focusLon)
+
+            val existingMarker = map.overlays
+                .filterIsInstance<Marker>()
+                .firstOrNull { marker ->
+                    marker.position.latitude == focusedPoint.latitude &&
+                            marker.position.longitude == focusedPoint.longitude
+                }
+
+            if (existingMarker != null) {
+                map.controller.animateTo(focusedPoint)
+                existingMarker.showInfoWindow()
+            } else {
+                // Pin was resolved or filtered; render dedicated focus marker
+                val focusMarker = Marker(map).apply {
+                    position = focusedPoint
+                    title = focusTitle
+                    snippet = "Status: $focusStatus"
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                }
+                map.overlays.add(focusMarker)
+                map.controller.animateTo(focusedPoint)
+                focusMarker.showInfoWindow()
+            }
+        }
+
         map.invalidate()
     }
 
-    /**
-     * Wires the horizontal category filter chips at the top of activity_map.xml.
-     */
     private fun setupCategoryFilters() {
         val filterButtons = mapOf(
             R.id.filterAll to null,
@@ -200,7 +243,6 @@ class MapActivity : AppCompatActivity() {
 
         filterButtons.forEach { (viewId, category) ->
             findViewById<TextView>(viewId).setOnClickListener { clickedView ->
-                // Update chip visual selection state
                 filterButtons.keys.forEach { id ->
                     val tv = findViewById<TextView>(id)
                     if (id == clickedView.id) {
@@ -218,8 +260,7 @@ class MapActivity : AppCompatActivity() {
 
     private fun setupFloatingControls() {
         findViewById<FloatingActionButton>(R.id.btnMapRecenter).setOnClickListener {
-            map.controller.animateTo(defaultCenter)
-            map.controller.setZoom(14.0)
+            requestCurrentLocation()
         }
 
         findViewById<ExtendedFloatingActionButton>(R.id.btnQuickReportHere).setOnClickListener {
@@ -228,7 +269,6 @@ class MapActivity : AppCompatActivity() {
         }
     }
 
-    //asks for location access permission
     private fun requestCurrentLocation() {
         val fineGranted = ContextCompat.checkSelfPermission(
             this,
@@ -252,10 +292,8 @@ class MapActivity : AppCompatActivity() {
         }
     }
 
-    //finds the user's Geopoints
     private fun centerCurrentLocation() {
-        val locationManager =
-            getSystemService(LOCATION_SERVICE) as LocationManager
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
 
         try {
             val providers = listOf(
@@ -266,101 +304,81 @@ class MapActivity : AppCompatActivity() {
             }
 
             if (providers.isEmpty()) {
-                Toast.makeText(
-                    this,
-                    "Please enable your device's location services.",
-                    Toast.LENGTH_LONG
-                ).show()
+                map.controller.animateTo(defaultCenter)
+                map.controller.setZoom(14.0)
                 return
             }
 
-            // Uses a recent known location if available.
             val lastLocation = providers.firstNotNullOfOrNull { provider ->
                 locationManager.getLastKnownLocation(provider)
             }
 
             if (lastLocation != null) {
                 map.controller.setZoom(16.0)
-                map.controller.animateTo(
-                    org.osmdroid.util.GeoPoint(
-                        lastLocation.latitude,
-                        lastLocation.longitude
-                    )
-                )
+                map.controller.animateTo(GeoPoint(lastLocation.latitude, lastLocation.longitude))
             }
 
-            // Request location as well.
             val listener = object : LocationListener {
                 override fun onLocationChanged(location: Location) {
                     map.controller.setZoom(16.0)
-                    map.controller.animateTo(
-                        org.osmdroid.util.GeoPoint(
-                            location.latitude,
-                            location.longitude
-                        )
-                    )
-
+                    map.controller.animateTo(GeoPoint(location.latitude, location.longitude))
                     locationManager.removeUpdates(this)
                 }
             }
 
             providers.forEach { provider ->
-                locationManager.requestLocationUpdates(
-                    provider,
-                    1000L,
-                    0f,
-                    listener
-                )
+                locationManager.requestLocationUpdates(provider, 1000L, 0f, listener)
             }
-
         } catch (e: SecurityException) {
-            Toast.makeText(
-                this,
-                "Location permission is required.",
-                Toast.LENGTH_LONG
-            ).show()
+            map.controller.animateTo(defaultCenter)
         }
     }
 
-
     private fun setupMapTapListener() {
         val receiver = object : MapEventsReceiver {
-
-            override fun singleTapConfirmedHelper(
-                point: org.osmdroid.util.GeoPoint
-            ): Boolean {
-
-
+            override fun singleTapConfirmedHelper(point: GeoPoint): Boolean {
                 if (intent.getBooleanExtra("PICK_LOCATION", false)) {
-
-                    // Show the exact coordinates of the point tapped on the map.
                     Toast.makeText(
                         this@MapActivity,
                         "Selected: ${point.latitude}, ${point.longitude}",
-                        Toast.LENGTH_LONG
+                        Toast.LENGTH_SHORT
                     ).show()
 
-                    // Send the tapped coordinates back to ReportActivity.
                     val result = Intent().apply {
                         putExtra("SELECTED_LAT", point.latitude)
                         putExtra("SELECTED_LON", point.longitude)
                     }
-
                     setResult(RESULT_OK, result)
                     finish()
                     return true
                 }
-
-
                 return false
             }
 
-            override fun longPressHelper(
-                point: org.osmdroid.util.GeoPoint
-            ): Boolean = false
+            override fun longPressHelper(point: GeoPoint): Boolean = false
         }
 
         map.overlays.add(0, MapEventsOverlay(receiver))
+    }
+
+    private fun getPriorityColor(priority: String): Int {
+        return when (priority.trim().lowercase()) {
+            "critical", "high" -> Color.rgb(220, 38, 38)
+            "medium" -> Color.rgb(245, 158, 11)
+            "low" -> Color.rgb(22, 163, 74)
+            else -> Color.GRAY
+        }
+    }
+
+    private fun getFaultIcon(category: String): Int {
+        return when (category.trim().lowercase()) {
+            "roads" -> R.drawable.ic_fault_roadwork
+            "water" -> R.drawable.ic_fault_water
+            "electricity" -> R.drawable.ic_fault_electricity
+            "streetlights" -> R.drawable.ic_fault_streetlights
+            "waste" -> R.drawable.ic_fault_waste
+            else -> R.drawable.ic_fault_default
+        }
     }
 
     override fun onResume() { super.onResume(); map.onResume() }

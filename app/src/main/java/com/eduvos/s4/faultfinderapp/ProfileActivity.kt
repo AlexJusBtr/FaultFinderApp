@@ -1,31 +1,29 @@
 package com.eduvos.s4.faultfinderapp
 
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.ImageButton
+import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 
-
-import android.app.AlertDialog
-import android.widget.EditText
-import android.widget.TextView
-import android.widget.Toast
-
 class ProfileActivity : AppCompatActivity() {
-
-    private val firebaseRepository = FirebaseRepository()
 
     private lateinit var fabMain: FloatingActionButton
     private lateinit var fabLeft: FloatingActionButton
     private lateinit var fabDiag: FloatingActionButton
     private lateinit var fabTop: FloatingActionButton
     private var isFabMenuOpen = false
+    private val repository = FirebaseRepository()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,7 +36,6 @@ class ProfileActivity : AppCompatActivity() {
             insets
         }
 
-        // Home Reset Rule
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener {
             startActivity(Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -51,21 +48,11 @@ class ProfileActivity : AppCompatActivity() {
             finish()
         }
 
-        // just changed the logout button function  so that we can have the reg/login
-        val btnLogout = findViewById<Button>(R.id.btnLogout)
-
-        updateAuthButton(btnLogout)
-
-        btnLogout.setOnClickListener {
-            if (firebaseRepository.isLoggedIn()) {
-                firebaseRepository.logoutUser()
-                updateAuthButton(btnLogout)
-            } else {
-                showAuthDialog()
-            }
+        findViewById<View>(R.id.btnAdminPortal).setOnClickListener {
+            startActivity(Intent(this, AdminDashboardActivity::class.java))
         }
 
-
+        refreshProfileState()
         setupSpeedDial()
     }
 
@@ -122,118 +109,60 @@ class ProfileActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateAuthButton(button: Button) {
-        button.text = if (firebaseRepository.isLoggedIn()) {
-            "Log Out"
+    override fun onResume() {
+        super.onResume()
+        refreshProfileState()
+    }
+
+    private fun refreshProfileState() {
+        val tvName = findViewById<TextView>(R.id.tvProfileName)
+        val tvEmail = findViewById<TextView>(R.id.tvProfileEmail)
+        val btnAuthAction = findViewById<MaterialButton>(R.id.btnLogout)
+        val btnAdminPortal = findViewById<MaterialButton>(R.id.btnAdminPortal)
+
+        if (repository.isLoggedIn()) {
+            repository.getCurrentUser(
+                onSuccess = { user ->
+                    val badge = if (user.role.equals("admin", true) || user.role.equals("municipal", true)) " (Admin)" else ""
+                    tvName.text = (user.name.ifBlank { "Citizen User" }) + badge
+                    tvEmail.text = user.email
+                },
+                onFailure = {
+                    tvName.text = "Citizen User"
+                    tvEmail.text = "Logged in"
+                }
+            )
+
+            // Only show the red Admin Portal button if the logged-in account is an Admin
+            repository.isAdminUser { isAdmin ->
+                btnAdminPortal.visibility = if (isAdmin) View.VISIBLE else View.GONE
+            }
+
+            btnAuthAction.text = "Log Out"
+            btnAuthAction.setTextColor(Color.parseColor("#EF4444"))
+            btnAuthAction.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
+            btnAuthAction.iconTint = ColorStateList.valueOf(Color.parseColor("#EF4444"))
+            btnAuthAction.strokeColor = ColorStateList.valueOf(Color.parseColor("#FECACA"))
+
+            btnAuthAction.setOnClickListener {
+                repository.logoutUser()
+                Toast.makeText(this, "Logged out", Toast.LENGTH_SHORT).show()
+                refreshProfileState()
+            }
         } else {
-            "Log In / Register"
-        }
-    }
-    private fun showAuthDialog() {
-        val dialogView = layoutInflater.inflate(
-            R.layout.dialog_auth,
-            null
-        )
+            tvName.text = "Guest Citizen"
+            tvEmail.text = "Not logged in"
+            btnAdminPortal.visibility = View.GONE
 
-        val title = dialogView.findViewById<TextView>(R.id.authTitle)
-        val nameInput = dialogView.findViewById<EditText>(R.id.authName)
-        val emailInput = dialogView.findViewById<EditText>(R.id.authEmail)
-        val passwordInput = dialogView.findViewById<EditText>(R.id.authPassword)
-        val submitButton = dialogView.findViewById<Button>(R.id.authSubmit)
-        val switchText = dialogView.findViewById<TextView>(R.id.authSwitch)
+            btnAuthAction.text = "Log In / Sign Up"
+            btnAuthAction.setTextColor(Color.WHITE)
+            btnAuthAction.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#004225"))
+            btnAuthAction.iconTint = ColorStateList.valueOf(Color.WHITE)
+            btnAuthAction.strokeColor = ColorStateList.valueOf(Color.parseColor("#004225"))
 
-        var isRegisterMode = false
-
-        val dialog = AlertDialog.Builder(this)
-            .setView(dialogView)
-            .create()
-
-        fun updateDialogMode() {
-            if (isRegisterMode) {
-                title.text = "Register"
-                nameInput.visibility = View.VISIBLE
-                submitButton.text = "Register"
-                switchText.text = "Already have an account? Log In"
-            } else {
-                title.text = "Log In"
-                nameInput.visibility = View.GONE
-                submitButton.text = "Log In"
-                switchText.text = "Don't have an account? Register"
+            btnAuthAction.setOnClickListener {
+                startActivity(Intent(this, AuthActivity::class.java))
             }
         }
-
-        switchText.setOnClickListener {
-            isRegisterMode = !isRegisterMode
-            updateDialogMode()
-        }
-        //this controls the authtication  for regester/login
-        submitButton.setOnClickListener {
-            val email = emailInput.text.toString().trim()
-            val password = passwordInput.text.toString()
-            val name = nameInput.text.toString().trim()
-
-            if (isRegisterMode) {
-                firebaseRepository.registerUser(
-                    name,
-                    email,
-                    password,
-                    onSuccess = {
-                        runOnUiThread {
-                            dialog.dismiss()
-                            updateAuthButton(
-                                findViewById(R.id.btnLogout)
-                            )
-
-                            Toast.makeText(
-                                this,
-                                "Registration successful!",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    },
-                    onFailure = { error ->
-                        runOnUiThread {
-                            Toast.makeText(
-                                this,
-                                error.message ?: "Registration failed.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
-                )
-            } else {
-                firebaseRepository.loginUser(
-                    email,
-                    password,
-                    onSuccess = {
-                        runOnUiThread {
-                            dialog.dismiss()
-                            updateAuthButton(
-                                findViewById(R.id.btnLogout)
-                            )
-
-                            Toast.makeText(
-                                this,
-                                "Login successful!",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    },
-                    onFailure = { error ->
-                        runOnUiThread {
-                            Toast.makeText(
-                                this,
-                                error.message ?: "Login failed.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
-                )
-            }
-        }
-
-        updateDialogMode()
-        dialog.show()
     }
-
 }

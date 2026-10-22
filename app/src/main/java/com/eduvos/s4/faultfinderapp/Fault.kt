@@ -1,7 +1,5 @@
 package com.eduvos.s4.faultfinderapp
 
-import com.google.firebase.Timestamp
-
 data class Fault(
     // --- Core Team Fields ---
     var id: String = "",                                      // Firestore document ID
@@ -13,9 +11,11 @@ data class Fault(
     var imageUrl: String = "",                                // Cloud Storage URL or Base64 fault photo
     var priority: String = "Medium",                          // High, Medium, or Low (auto-assigned by triaging rules)
     var status: String = "Pending",                           // Pending, In Progress, or Resolved
-    //just changed System.currentTimeMillis() to Timestamp.now()
-    var createdAt: Timestamp = Timestamp.now(),         // Creation timestamp (ms) for sorting newest first
-    var updatedAt: Timestamp = Timestamp.now(),         // Last status update timestamp (ms)
+    var isDuplicate: Boolean = false,
+    var duplicateOfFaultId: String = "",
+    var createdAt: Long = System.currentTimeMillis(),         // Creation timestamp (ms) for sorting newest first
+    var updatedAt: Long = System.currentTimeMillis(),         // Last status update timestamp (ms)                                                               
+
 
     // --- Extra UI & Research Fields ---
     var ref: String = "",                                     // Human-readable reference ID (e.g., "#CT-0001")

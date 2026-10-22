@@ -53,7 +53,7 @@
                 app:tint="@color/green" />
         </LinearLayout>
 
-        <!-- Segmented Tab Bar -->
+        <!-- Segmented Tab Navigation -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="44dp"
@@ -78,7 +78,7 @@
                     android:layout_height="0dp"
                     android:layout_weight="1"
                     android:gravity="center"
-                    android:text="Report"
+                    android:text="Report Form"
                     android:textColor="@color/green"
                     android:textSize="13sp"
                     android:textStyle="bold" />
@@ -119,208 +119,223 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Container 1: Report Form -->
-        <LinearLayout
+        <!-- Container 1: Report Form (Wrapped in ScrollView to prevent keyboard overlap) -->
+        <ScrollView
             android:id="@+id/layoutReportForm"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:paddingStart="16dp"
-            android:paddingTop="10dp"
-            android:paddingEnd="16dp"
-            android:paddingBottom="10dp"
+            android:fillViewport="true"
             android:visibility="visible">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:baselineAligned="false"
-                android:orientation="horizontal">
+                android:orientation="vertical"
+                android:paddingStart="16dp"
+                android:paddingTop="12dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="90dp">
 
+                <!-- Title & Category Row -->
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="6dp"
-                    android:layout_weight="7"
-                    android:orientation="vertical">
+                    android:baselineAligned="false"
+                    android:orientation="horizontal">
 
-                    <TextView
-                        android:layout_width="wrap_content"
+                    <LinearLayout
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:text="Title"
-                        android:textColor="#334155"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="6.5"
+                        android:orientation="vertical">
 
-                    <EditText
-                        android:id="@+id/etTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="42dp"
-                        android:layout_marginTop="3dp"
-                        android:background="@drawable/bg_input"
-                        android:hint="e.g. Water leak"
-                        android:inputType="textCapSentences"
-                        android:paddingStart="10dp"
-                        android:paddingEnd="10dp"
-                        android:textColor="#1E293B"
-                        android:textColorHint="@color/grey"
-                        android:textSize="13sp" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Fault Title"
+                            android:textColor="#334155"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/etTitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="e.g. Deep pothole on left lane"
+                            android:inputType="textCapSentences"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:textColor="#1E293B"
+                            android:textColorHint="@color/grey"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="3.5"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Category"
+                            android:textColor="#334155"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <Spinner
+                            android:id="@+id/spinnerCategory"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:entries="@array/fault_categories"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp" />
+                    </LinearLayout>
                 </LinearLayout>
 
-                <LinearLayout
-                    android:layout_width="0dp"
+                <!-- Description Field -->
+                <TextView
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:layout_weight="3"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Category"
-                        android:textColor="#334155"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <Spinner
-                        android:id="@+id/spinnerCategory"
-                        android:layout_width="match_parent"
-                        android:layout_height="42dp"
-                        android:layout_marginTop="3dp"
-                        android:background="@drawable/bg_input"
-                        android:entries="@array/fault_categories"
-                        android:paddingStart="6dp"
-                        android:paddingEnd="6dp" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="Description"
-                android:textColor="#334155"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <EditText
-                android:id="@+id/etDescription"
-                android:layout_width="match_parent"
-                android:layout_height="64dp"
-                android:layout_marginTop="3dp"
-                android:background="@drawable/bg_input"
-                android:gravity="top|start"
-                android:hint="Details (severity, landmarks, road hazards)..."
-                android:inputType="textMultiLine"
-                android:padding="8dp"
-                android:textColor="#1E293B"
-                android:textColorHint="@color/grey"
-                android:textSize="13sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="Location"
-                android:textColor="#334155"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="42dp"
-                android:layout_marginTop="3dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                    android:layout_marginTop="10dp"
+                    android:text="Detailed Description"
+                    android:textColor="#334155"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
 
                 <EditText
-                    android:id="@+id/etLocation"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
+                    android:id="@+id/etDescription"
+                    android:layout_width="match_parent"
+                    android:layout_height="68dp"
+                    android:layout_marginTop="4dp"
                     android:background="@drawable/bg_input"
-                    android:hint="Street name or suburb"
-                    android:inputType="textPostalAddress"
-                    android:paddingStart="10dp"
-                    android:paddingEnd="10dp"
+                    android:gravity="top|start"
+                    android:hint="Describe the hazard (landmarks, danger level, road swerving)..."
+                    android:inputType="textMultiLine|textCapSentences"
+                    android:padding="10dp"
                     android:textColor="#1E293B"
                     android:textColorHint="@color/grey"
                     android:textSize="13sp" />
 
-                <ImageButton
-                    android:id="@+id/locationBtn"
-                    android:layout_width="42dp"
-                    android:layout_height="42dp"
-                    android:layout_marginStart="8dp"
-                    android:background="@drawable/bg_btn_green"
-                    android:contentDescription="Use Current GPS Location"
-                    android:src="@android:drawable/ic_menu_mylocation"
-                    app:tint="#FFFFFF" />
-            </LinearLayout>
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_marginTop="10dp"
-                app:cardCornerRadius="10dp"
-                app:cardElevation="0dp"
-                app:strokeColor="#CBD5E1"
-                app:strokeWidth="1.5dp">
+                <!-- Location Row with Map Pin Button -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Incident Location"
+                    android:textColor="#334155"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
 
                 <LinearLayout
-                    android:id="@+id/photoBox"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="@drawable/bg_photo_box"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground"
-                    android:gravity="center"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal">
 
-                    <ImageView
-                        android:id="@+id/imgFaultPhoto"
-                        android:layout_width="26dp"
-                        android:layout_height="26dp"
-                        android:contentDescription="Take fault photo"
-                        android:src="@android:drawable/ic_menu_camera"
-                        app:tint="@color/green" />
+                    <EditText
+                        android:id="@+id/etLocation"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_input"
+                        android:hint="Type street address or select from map"
+                        android:inputType="textPostalAddress"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:textColor="#1E293B"
+                        android:textColorHint="@color/grey"
+                        android:textSize="13sp" />
 
-                    <TextView
-                        android:id="@+id/tvPhotoLabel"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
-                        android:text="Tap to capture / add fault photo"
-                        android:textColor="@color/green"
-                        android:textSize="12.5sp"
-                        android:textStyle="bold" />
+                    <ImageButton
+                        android:id="@+id/locationBtn"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_btn_green"
+                        android:contentDescription="Select Location on Map"
+                        android:src="@android:drawable/ic_menu_mylocation"
+                        app:tint="#FFFFFF" />
                 </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
 
-            <CheckBox
-                android:id="@+id/cbAnonymous"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginTop="4dp"
-                android:text="Report anonymously"
-                android:textColor="#475569"
-                android:textSize="12.5sp" />
+                <!-- Photo Attachment Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="58dp"
+                    android:layout_marginTop="12dp"
+                    app:cardCornerRadius="10dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="#CBD5E1"
+                    app:strokeWidth="1.5dp">
 
-            <Button
-                android:id="@+id/submitButton"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="8dp"
-                android:background="@drawable/bg_btn_green"
-                android:elevation="2dp"
-                android:letterSpacing="0.02"
-                android:text="Submit Fault Report"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                app:backgroundTint="@null" />
-        </LinearLayout>
+                    <LinearLayout
+                        android:id="@+id/photoBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/bg_photo_box"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:gravity="center"
+                        android:orientation="horizontal"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp">
+
+                        <ImageView
+                            android:id="@+id/imgFaultPhoto"
+                            android:layout_width="26dp"
+                            android:layout_height="26dp"
+                            android:contentDescription="Fault Photo Icon"
+                            android:src="@android:drawable/ic_menu_camera"
+                            app:tint="@color/green" />
+
+                        <TextView
+                            android:id="@+id/tvPhotoLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:text="Tap to take photo or choose from gallery"
+                            android:textColor="@color/green"
+                            android:textSize="12.5sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Anonymous Submission Checkbox -->
+                <CheckBox
+                    android:id="@+id/cbAnonymous"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:layout_marginTop="6dp"
+                    android:text="Submit report anonymously"
+                    android:textColor="#475569"
+                    android:textSize="12.5sp" />
+
+                <!-- Primary Submit Button -->
+                <Button
+                    android:id="@+id/submitButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_btn_green"
+                    android:elevation="2dp"
+                    android:letterSpacing="0.02"
+                    android:text="Submit Fault Report"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    app:backgroundTint="@null" />
+            </LinearLayout>
+        </ScrollView>
 
         <!-- Container 2: Nearby & History List -->
         <LinearLayout
@@ -330,11 +345,12 @@
             android:orientation="vertical"
             android:visibility="gone">
 
+            <!-- Toggle Filter: Near me vs All history -->
             <RadioGroup
                 android:id="@+id/nearbyToggle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="8dp"
                 android:orientation="horizontal"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp">
@@ -342,27 +358,30 @@
                 <RadioButton
                     android:id="@+id/rbNearMe"
                     android:layout_width="wrap_content"
-                    android:layout_height="42dp"
+                    android:layout_height="38dp"
                     android:checked="true"
                     android:text="Near me"
-                    android:textColor="#334155" />
+                    android:textColor="#334155"
+                    android:textSize="13sp" />
 
                 <RadioButton
                     android:id="@+id/rbAllHistory"
                     android:layout_width="wrap_content"
-                    android:layout_height="42dp"
+                    android:layout_height="38dp"
                     android:layout_marginStart="16dp"
                     android:text="All history"
-                    android:textColor="#334155" />
+                    android:textColor="#334155"
+                    android:textSize="13sp" />
             </RadioGroup>
 
+            <!-- Duplicate Advisory Banner -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="16dp"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="4dp"
                 android:layout_marginEnd="16dp"
-                android:layout_marginBottom="6dp"
+                android:layout_marginBottom="8dp"
                 app:cardBackgroundColor="@color/green_light"
                 app:cardCornerRadius="8dp"
                 app:cardElevation="0dp">
@@ -378,35 +397,48 @@
                         android:layout_width="20dp"
                         android:layout_height="20dp"
                         android:layout_marginEnd="8dp"
-                        android:contentDescription="Info"
+                        android:contentDescription="Advisory Info"
                         android:src="@android:drawable/ic_dialog_info"
                         app:tint="@color/green" />
 
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Check existing reports below before submitting to prevent duplicates."
+                        android:text="Review existing community faults below to verify if your issue has already been logged."
                         android:textColor="@color/green"
                         android:textSize="12sp"
                         android:textStyle="bold" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Empty State -->
+            <TextView
+                android:id="@+id/emptyNearbyText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:padding="32dp"
+                android:text="No reports logged in this area yet."
+                android:textColor="@color/grey"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
+            <!-- Live Reports ListView -->
             <ListView
                 android:id="@+id/listNearby"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"
+                android:layout_marginStart="14dp"
+                android:layout_marginEnd="14dp"
                 android:layout_weight="1"
                 android:clipToPadding="false"
                 android:divider="@android:color/transparent"
                 android:dividerHeight="8dp"
-                android:paddingBottom="84dp" />
+                android:paddingBottom="90dp" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Bottom-Right Speed Dial FAB Cluster -->
+    <!-- Bottom-Right Radial Speed Dial Navigation -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabLeft"
         android:layout_width="wrap_content"
@@ -446,7 +478,7 @@
         android:layout_gravity="bottom|end"
         android:layout_marginEnd="20dp"
         android:layout_marginBottom="20dp"
-        android:contentDescription="Home"
+        android:contentDescription="Home Dashboard"
         android:src="@android:drawable/ic_menu_myplaces"
         android:visibility="invisible"
         app:backgroundTint="@color/green"
@@ -462,7 +494,7 @@
         android:layout_gravity="bottom|end"
         android:layout_marginEnd="20dp"
         android:layout_marginBottom="20dp"
-        android:contentDescription="Quick Actions"
+        android:contentDescription="Quick Navigation"
         android:src="@android:drawable/ic_input_add"
         app:backgroundTint="@color/green"
         app:elevation="8dp"

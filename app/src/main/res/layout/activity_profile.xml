@@ -118,6 +118,29 @@
                 app:strokeColor="#E2E8F0"
                 app:strokeWidth="1dp" />
 
+            <!-- Red Admin Portal Button: Hidden unless current user is an Admin -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnAdminPortal"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginBottom="12dp"
+                android:gravity="center_vertical|start"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:text="Municipal Admin Portal"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                app:backgroundTint="#DC2626"
+                app:cornerRadius="12dp"
+                app:icon="@android:drawable/ic_menu_manage"
+                app:iconTint="#FFFFFF"
+                app:strokeColor="#B91C1C"
+                app:strokeWidth="1dp" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnLogout"
                 android:layout_width="match_parent"
@@ -139,7 +162,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- FAB Cluster added to Profile -->
+    <!-- FAB Cluster -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabLeft"
         android:layout_width="wrap_content"

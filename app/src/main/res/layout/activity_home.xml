@@ -12,7 +12,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Top App Bar (Profile Button) -->
+        <!-- Top App Bar -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
@@ -39,6 +39,30 @@
                 android:textSize="22sp"
                 android:textStyle="bold" />
 
+            <!-- Red Admin Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnAdminHeader"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:layout_marginEnd="6dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:text="Admin"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF"
+                android:textSize="11.5sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                app:backgroundTint="#DC2626"
+                app:cornerRadius="8dp"
+                app:icon="@android:drawable/ic_menu_manage"
+                app:iconPadding="4dp"
+                app:iconSize="15dp"
+                app:iconTint="#FFFFFF" />
+
             <ImageButton
                 android:id="@+id/btnProfile"
                 android:layout_width="44dp"
@@ -49,7 +73,7 @@
                 app:tint="@color/green" />
         </LinearLayout>
 
-        <!-- Search Bar & GPS Recenter (9:1 Proportional Ratio) -->
+        <!-- Search Bar & GPS Recenter (9:1 Ratio) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="44dp"
@@ -105,7 +129,7 @@
         <!-- Map View Card -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
-            android:layout_height="230dp"
+            android:layout_height="220dp"
             android:layout_marginStart="16dp"
             android:layout_marginTop="10dp"
             android:layout_marginEnd="16dp"
@@ -120,12 +144,12 @@
                 android:layout_height="match_parent" />
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Quick Report Section (Renamed from Categories) -->
+        <!-- Quick Report Section -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="10dp"
             android:text="Quick Report"
             android:textColor="#334155"
             android:textSize="13sp"
@@ -237,7 +261,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="10dp"
             android:layout_marginEnd="16dp"
             android:background="?attr/selectableItemBackground"
             android:clickable="true"
@@ -263,16 +287,30 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
+        <!-- Empty State Message -->
+        <TextView
+            android:id="@+id/emptyRecentReports"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:padding="24dp"
+            android:text="No fault reports found near your location."
+            android:textColor="@color/grey"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <!-- Card-Based Recent Reports ListView -->
         <ListView
             android:id="@+id/listRecentReports"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
+            android:layout_marginStart="14dp"
+            android:layout_marginEnd="14dp"
+            android:layout_marginTop="4dp"
             android:layout_weight="1"
             android:clipToPadding="false"
             android:divider="@android:color/transparent"
-            android:dividerHeight="6dp"
+            android:dividerHeight="8dp"
             android:paddingBottom="84dp" />
     </LinearLayout>
 
