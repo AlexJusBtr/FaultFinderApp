@@ -116,20 +116,63 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
     private fun refreshMapMarkers() {
         if (!::map.isInitialized) return
+
         map.overlays.clear()
 
         recentFaults.forEach { fault ->
+            val markerDrawable = FaultMapMarkerDrawable(
+                context = this,
+                pinColor = getPriorityColor(fault.priority),
+                iconResource = getFaultIcon(fault.category)
+            )
+
             val marker = Marker(map).apply {
                 position = GeoPoint(fault.lat, fault.lon)
                 title = "${fault.title} (${fault.ref})"
-                snippet = "${fault.category} • ${fault.status} • ${fault.priority} Priority"
+                snippet =
+                    "${fault.category} • ${fault.status} • ${fault.priority} Priority"
+
+                icon = markerDrawable
+                setAnchor(
+                    Marker.ANCHOR_CENTER,
+                    Marker.ANCHOR_BOTTOM
+                )
             }
+
             map.overlays.add(marker)
         }
+
         map.invalidate()
     }
+
+
+    /**
+     * these 2 functions decide which color and icon to use for each fault based on priority and category.
+     * this only applies to the map on main screen.
+     * */
+    private fun getPriorityColor(priority: String): Int {
+        return when (priority.trim().lowercase()) {
+            "high" -> Color.rgb(220, 38, 38)
+            "medium" -> Color.rgb(245, 158, 11)
+            "low" -> Color.rgb(22, 163, 74)
+            else -> Color.GRAY
+        }
+    }
+
+    private fun getFaultIcon(category: String): Int {
+        return when (category.trim().lowercase()) {
+            "roads" -> R.drawable.ic_fault_roadwork
+            "water" -> R.drawable.ic_fault_water
+            "electricity" -> R.drawable.ic_fault_electricity
+            "streetlights" -> R.drawable.ic_fault_streetlights
+            "waste" -> R.drawable.ic_fault_waste
+            else -> R.drawable.ic_fault_default
+        }
+    }
+
 
     /**
      * Wires the top search bar to filter recent reports and map markers in real time.

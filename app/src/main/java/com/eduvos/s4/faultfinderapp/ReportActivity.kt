@@ -275,6 +275,7 @@ class ReportActivity : AppCompatActivity() {
                 putExtra("EXTRA_CATEGORY", fault.category)
                 putExtra("EXTRA_DATE", fault.date)
                 putExtra("EXTRA_DESCRIPTION", fault.description)
+                putExtra("EXTRA_IMAGE_URL", fault.imageUrl)
                 putExtra("EXTRA_LAT", fault.latitude)
                 putExtra("EXTRA_LON", fault.longitude)
                 putExtra("EXTRA_CONFIRMATIONS", fault.confirmations)

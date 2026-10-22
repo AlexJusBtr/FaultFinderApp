@@ -13,6 +13,9 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 import kotlin.random.Random
+import com.cloudinary.android.MediaManager
+import com.cloudinary.android.callback.ErrorInfo
+import com.cloudinary.android.callback.UploadCallback
 
 /**
  * Centralized backend repository managing Firebase Authentication, Cloud Storage,
@@ -167,33 +170,69 @@ class FirebaseRepository {
     // 3. IMAGE UPLOAD & FAULT CRUD OPERATIONS
     // =========================================================================
 
-    fun uploadFaultImage(
+
+    private fun uploadFaultImage(
         imageUri: Uri,
         onSuccess: (String) -> Unit,
         onFailure: (Exception) -> Unit
     ) {
-        val userId = auth.currentUser?.uid
-        if (userId == null) {
-            onFailure(Exception("You must be logged in"))
-            return
-        }
+        val preset = CloudinaryConfig.UPLOAD_PRESET
 
-        val filename = "${UUID.randomUUID()}.jpg"
-        val imageRef = storage.reference
-            .child("fault_images")
-            .child(userId)
-            .child(filename)
+        MediaManager.get()
+            .upload(imageUri)
+            .unsigned(preset)
+            .callback(object : UploadCallback {
 
-        imageRef.putFile(imageUri)
-            .continueWithTask { task ->
-                if (!task.isSuccessful) {
-                    throw task.exception ?: Exception("Image upload failed")
+                override fun onStart(requestId: String?) {
+                    // Upload started
                 }
-                imageRef.downloadUrl
-            }
-            .addOnSuccessListener { uri -> onSuccess(uri.toString()) }
-            .addOnFailureListener(onFailure)
+
+                override fun onProgress(
+                    requestId: String?,
+                    bytes: Long,
+                    totalBytes: Long
+                ) {
+                    // Optional: update upload progress
+                }
+
+                override fun onSuccess(
+                    requestId: String?,
+                    resultData: MutableMap<Any?, Any?>?
+                ) {
+                    val secureUrl =
+                        resultData?.get("secure_url") as? String
+
+                    if (!secureUrl.isNullOrBlank()) {
+                        onSuccess(secureUrl)
+                    } else {
+                        onFailure(
+                            Exception("Cloudinary returned no secure image URL.")
+                        )
+                    }
+                }
+
+                override fun onError(
+                    requestId: String?,
+                    error: ErrorInfo?
+                ) {
+                    onFailure(
+                        Exception(
+                            "Cloudinary upload failed: " +
+                                    (error?.description ?: "Unknown error")
+                        )
+                    )
+                }
+
+                override fun onReschedule(
+                    requestId: String?,
+                    error: ErrorInfo?
+                ) {
+                    // Cloudinary may retry the upload automatically.
+                }
+            })
+            .dispatch()
     }
+
 
     /**
      * CREATE: Writes a complete Fault document into Firestore and logs its initial StatusHistory.
@@ -271,6 +310,7 @@ class FirebaseRepository {
             .addOnFailureListener(onFailure)
     }
 
+
     fun createFaultWithImage(
         title: String = "",
         category: String,
@@ -283,6 +323,7 @@ class FirebaseRepository {
         onSuccess: (String) -> Unit,
         onFailure: (Exception) -> Unit
     ) {
+        // If no image was selected, create the fault normally.
         if (imageUri == null) {
             createFault(
                 title = title,
@@ -299,6 +340,7 @@ class FirebaseRepository {
             return
         }
 
+        // Upload the image to Cloudinary before saving the fault.
         uploadFaultImage(
             imageUri = imageUri,
             onSuccess = { imageUrl ->
@@ -315,23 +357,13 @@ class FirebaseRepository {
                     onFailure = onFailure
                 )
             },
-            onFailure = {
-                // Fallback: If Storage upload fails, still save the fault document so submission never breaks
-                createFault(
-                    title = title,
-                    category = category,
-                    description = description,
-                    latitude = latitude,
-                    longitude = longitude,
-                    location = location,
-                    isAnonymous = isAnonymous,
-                    imageUrl = "",
-                    onSuccess = onSuccess,
-                    onFailure = onFailure
-                )
+            onFailure = { exception ->
+                // Do not create a fault if its selected image fails to upload.
+                onFailure(exception)
             }
         )
     }
+
 
     /**
      * READ (All): Fetches all faults ordered newest first. Seeds 4 Cape Town faults if empty.

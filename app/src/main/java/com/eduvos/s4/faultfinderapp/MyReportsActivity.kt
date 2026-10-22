@@ -177,6 +177,7 @@ class MyReportsActivity : AppCompatActivity() {
                 putExtra("EXTRA_CATEGORY", item.category)
                 putExtra("EXTRA_DATE", item.date)
                 putExtra("EXTRA_DESCRIPTION", item.description)
+                putExtra("EXTRA_IMAGE_URL", item.imageUrl)
                 putExtra("EXTRA_LAT", item.latitude)
                 putExtra("EXTRA_LON", item.longitude)
                 putExtra("EXTRA_CONFIRMATIONS", item.confirmations)
