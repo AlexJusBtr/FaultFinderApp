@@ -119,6 +119,26 @@
                 app:strokeWidth="1dp" />
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnAdminPortal"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginBottom="12dp"
+                android:gravity="center_vertical|start"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:text="Admin Portal"
+                android:textColor="#1E293B"
+                android:textSize="14sp"
+                app:backgroundTint="#F0FDF4"
+                app:cornerRadius="12dp"
+                app:icon="@android:drawable/ic_menu_manage"
+                app:iconTint="@color/green"
+                app:strokeColor="#BBF7D0"
+                app:strokeWidth="1dp" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnLogout"
                 android:layout_width="match_parent"
                 android:layout_height="56dp"

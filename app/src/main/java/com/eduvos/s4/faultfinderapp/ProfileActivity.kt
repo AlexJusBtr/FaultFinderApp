@@ -51,6 +51,12 @@ class ProfileActivity : AppCompatActivity() {
             finish()
         }
 
+
+        findViewById<View>(R.id.btnAdminPortal).setOnClickListener {
+            startActivity(Intent(this, AdminLoginActivity::class.java))
+        }
+
+
         // just changed the logout button function  so that we can have the reg/login
         val btnLogout = findViewById<Button>(R.id.btnLogout)
 

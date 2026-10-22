@@ -26,6 +26,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".AdminLoginActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".AdminDashboardActivity"
+            android:exported="false" />
+
         <provider android:name="androidx.core.content.FileProvider"
             android:authorities="com.eduvos.s4.faultfinderapp.fileProvider"
             android:exported="false"
