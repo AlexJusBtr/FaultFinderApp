@@ -111,6 +111,75 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- Segmented Tab Navigation: Active vs Resolved Archive -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="16dp"
+            android:background="#FFFFFF"
+            android:elevation="2dp"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:id="@+id/tabActive"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvTabActive"
+                    android:layout_width="wrap_content"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="Active Faults"
+                    android:textColor="#DC2626"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <View
+                    android:id="@+id/indicatorTabActive"
+                    android:layout_width="match_parent"
+                    android:layout_height="3dp"
+                    android:background="#DC2626" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/tabResolved"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvTabResolved"
+                    android:layout_width="wrap_content"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="Resolved / Fixed"
+                    android:textColor="@color/grey"
+                    android:textSize="13sp" />
+
+                <View
+                    android:id="@+id/indicatorTabResolved"
+                    android:layout_width="match_parent"
+                    android:layout_height="3dp"
+                    android:background="#F1F5F9" />
+            </LinearLayout>
+        </LinearLayout>
+
         <ProgressBar
             android:id="@+id/adminProgressBar"
             style="?android:attr/progressBarStyleHorizontal"
@@ -146,10 +215,30 @@
             android:paddingBottom="16dp">
 
             <LinearLayout
-                android:id="@+id/adminReportsContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical" />
+                android:orientation="vertical">
+
+                <!-- Empty State Message for Current Tab -->
+                <TextView
+                    android:id="@+id/tvEmptyReports"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:paddingTop="36dp"
+                    android:paddingBottom="36dp"
+                    android:text="No fault reports in this section."
+                    android:textColor="#94A3B8"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/adminReportsContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </LinearLayout>
         </ScrollView>
 
         <!-- Bottom Sign Out Bar -->
