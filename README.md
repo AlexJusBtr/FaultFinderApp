@@ -5,7 +5,7 @@
 
 ---
 
-## 🔑 Administrative Evaluation Account
+##  Administrative Evaluation Account
 
 Use these credentials to access the **Admin Control Panel** (status triage, audit logs, and permanent report deletion):
 
@@ -14,7 +14,7 @@ Use these credentials to access the **Admin Control Panel** (status triage, audi
 
 ---
 
-## 🚀 Core Features
+##  Core Features
 
 - **Live OSM Mapping:** Embedded OpenStreetMap with custom canvas pins, GPS nearest-first sorting, search, and category filters.
 - **100m Duplicate Detection:** Spatial check prompts a `+1` confirmation instead of creating duplicate tickets.
@@ -24,7 +24,7 @@ Use these credentials to access the **Admin Control Panel** (status triage, audi
 
 ---
 
-## 📦 How to Build & Publish Release APK
+##  How to Build & Publish Release APK
 
 1. **Build APK:** In Android Studio, go to `Build` > `Build Bundle(s) / APK(s)` > `Build APK(s)`. Locate the output file (`app-debug.apk`) and rename it to `FaultFinderApp-v1.0.apk`.
 2. **Draft Release:** In GitHub, open **Releases** > **Draft a new release**.
