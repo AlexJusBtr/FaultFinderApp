@@ -1,12 +1,21 @@
 package com.eduvos.s4.faultfinderapp
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageButton
+import android.widget.LinearLayout
+import android.widget.RadioGroup
+import android.widget.SeekBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
@@ -22,6 +31,19 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var fabTop: FloatingActionButton
     private var isFabMenuOpen = false
 
+    private val requestNotificationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            NotificationHelper.sendStatusNotification(
+                context = this,
+                ref = "FLT-TEST",
+                title = "Sample Municipal Fault",
+                newStatus = "In Progress"
+            )
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -33,24 +55,85 @@ class SettingsActivity : AppCompatActivity() {
             insets
         }
 
-        // Setting screen exception: Back button operates normally (does not force home)
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
 
         val prefs = getSharedPreferences("app_settings", MODE_PRIVATE)
         val switchAlerts = findViewById<MaterialSwitch>(R.id.switchStatusAlerts)
         val switchAnonymous = findViewById<MaterialSwitch>(R.id.switchDefaultAnonymous)
+        val layoutNotificationOptions = findViewById<LinearLayout>(R.id.layoutNotificationOptions)
+        val rgScope = findViewById<RadioGroup>(R.id.rgNotificationScope)
+        val layoutDistanceContainer = findViewById<LinearLayout>(R.id.layoutDistanceContainer)
+        val seekBarDistance = findViewById<SeekBar>(R.id.seekBarDistance)
+        val tvMaxDistanceValue = findViewById<TextView>(R.id.tvMaxDistanceValue)
 
-        switchAlerts.isChecked = prefs.getBoolean("status_alerts", true)
+        // Load saved preferences
+        val alertsEnabled = prefs.getBoolean("status_alerts", true)
+        val notifyAllNearby = prefs.getBoolean("notify_all_nearby", false)
+        val maxDistanceKm = prefs.getInt("notify_max_distance_km", 5).coerceIn(1, 25)
+
+        switchAlerts.isChecked = alertsEnabled
         switchAnonymous.isChecked = prefs.getBoolean("default_anonymous", false)
+        layoutNotificationOptions.visibility = if (alertsEnabled) View.VISIBLE else View.GONE
 
-        switchAlerts.setOnCheckedChangeListener { _, isChecked ->
-            prefs.edit().putBoolean("status_alerts", isChecked).apply()
+        if (notifyAllNearby) {
+            rgScope.check(R.id.rbNotifyNearby)
+            layoutDistanceContainer.visibility = View.VISIBLE
+        } else {
+            rgScope.check(R.id.rbNotifyMine)
+            layoutDistanceContainer.visibility = View.GONE
         }
 
+        seekBarDistance.progress = maxDistanceKm - 1
+        tvMaxDistanceValue.text = "$maxDistanceKm km"
+
+        // Master notification toggle listener
+        switchAlerts.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean("status_alerts", isChecked).apply()
+            layoutNotificationOptions.visibility = if (isChecked) View.VISIBLE else View.GONE
+        }
+
+        // Scope toggle listener (Only Mine vs All Nearby)
+        rgScope.setOnCheckedChangeListener { _, checkedId ->
+            val allNearby = (checkedId == R.id.rbNotifyNearby)
+            prefs.edit().putBoolean("notify_all_nearby", allNearby).apply()
+            layoutDistanceContainer.visibility = if (allNearby) View.VISIBLE else View.GONE
+        }
+
+        // Distance slider listener (1 km to 25 km)
+        seekBarDistance.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val km = (progress + 1).coerceIn(1, 25)
+                tvMaxDistanceValue.text = "$km km"
+                prefs.edit().putInt("notify_max_distance_km", km).apply()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        // Test notification button
+        findViewById<MaterialButton>(R.id.btnTestNotification).setOnClickListener {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                NotificationHelper.sendStatusNotification(
+                    context = this,
+                    ref = "FLT-DEMO",
+                    title = "Burst Water Pipe",
+                    newStatus = "In Progress"
+                )
+                Toast.makeText(this, "Test notification sent!", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // Anonymous toggle listener
         switchAnonymous.setOnCheckedChangeListener { _, isChecked ->
             prefs.edit().putBoolean("default_anonymous", isChecked).apply()
         }
 
+        // Clear OSM cache button
         findViewById<MaterialButton>(R.id.btnClearCache).setOnClickListener {
             try {
                 val osmCacheDir = Configuration.getInstance().osmdroidTileCache

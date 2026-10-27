@@ -12,7 +12,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Top Bar (Profile Button Removed) -->
+        <!-- Universal Top App Bar -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
@@ -31,16 +31,29 @@
                 android:src="@android:drawable/ic_menu_revert"
                 app:tint="@color/green" />
 
-            <TextView
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:layout_weight="1"
-                android:letterSpacing="-0.02"
-                android:text="Settings &amp; Preferences"
-                android:textColor="@color/green"
-                android:textSize="20sp"
-                android:textStyle="bold" />
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="-0.02"
+                    android:text="Settings &amp; Preferences"
+                    android:textColor="@color/green"
+                    android:textSize="19sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Alerts, proximity radius, privacy &amp; storage"
+                    android:textColor="#64748B"
+                    android:textSize="11sp" />
+            </LinearLayout>
         </LinearLayout>
 
         <ScrollView
@@ -49,18 +62,19 @@
             android:layout_weight="1"
             android:clipToPadding="false"
             android:padding="16dp"
-            android:paddingBottom="84dp">
+            android:paddingBottom="90dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
+                <!-- SECTION 1: NOTIFICATIONS & PROXIMITY -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="6dp"
-                    android:text="Offline Storage"
+                    android:text="Notifications &amp; Proximity"
                     android:textColor="#334155"
                     android:textSize="13sp"
                     android:textStyle="bold" />
@@ -69,7 +83,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="16dp"
-                    app:cardCornerRadius="12dp"
+                    app:cardBackgroundColor="#FFFFFF"
+                    app:cardCornerRadius="14dp"
                     app:cardElevation="1dp"
                     app:strokeColor="#E2E8F0"
                     app:strokeWidth="1dp">
@@ -77,63 +92,6 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:background="@drawable/bg_card"
-                        android:orientation="vertical"
-                        android:padding="16dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="OpenStreetMap Disk Cache"
-                            android:textColor="#1E293B"
-                            android:textSize="15sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="Clear saved map tiles to free up internal phone storage."
-                            android:textColor="@color/grey"
-                            android:textSize="12sp" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnClearCache"
-                            android:layout_width="wrap_content"
-                            android:layout_height="44dp"
-                            android:layout_marginTop="12dp"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:text="Clear Map Tile Cache"
-                            android:textColor="#FFFFFF"
-                            android:textSize="12sp"
-                            app:backgroundTint="@color/green"
-                            app:cornerRadius="8dp" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="6dp"
-                    android:text="Notifications"
-                    android:textColor="#334155"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="1dp"
-                    app:strokeColor="#E2E8F0"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/bg_card"
                         android:orientation="vertical"
                         android:padding="16dp">
 
@@ -143,7 +101,7 @@
                             android:layout_height="wrap_content"
                             android:checked="true"
                             android:text="Report Status Alerts"
-                            android:textColor="#1E293B"
+                            android:textColor="#0F172A"
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
@@ -151,12 +109,131 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="Receive alerts when your submitted fault status moves to In Progress or Resolved."
-                            android:textColor="@color/grey"
+                            android:text="Receive push alerts when fault statuses change to In Progress or Resolved."
+                            android:textColor="#64748B"
                             android:textSize="12sp" />
+
+                        <!-- Notification Options Container (Hidden when alerts are turned off) -->
+                        <LinearLayout
+                            android:id="@+id/layoutNotificationOptions"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:orientation="vertical">
+
+                            <View
+                                android:layout_width="match_parent"
+                                android:layout_height="1dp"
+                                android:layout_marginBottom="12dp"
+                                android:background="#F1F5F9" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Alert Scope"
+                                android:textColor="#334155"
+                                android:textSize="12.5sp"
+                                android:textStyle="bold" />
+
+                            <RadioGroup
+                                android:id="@+id/rgNotificationScope"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:orientation="vertical">
+
+                                <RadioButton
+                                    android:id="@+id/rbNotifyMine"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="38dp"
+                                    android:checked="true"
+                                    android:text="Only my submitted reports"
+                                    android:textColor="#1E293B"
+                                    android:textSize="13sp" />
+
+                                <RadioButton
+                                    android:id="@+id/rbNotifyNearby"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="38dp"
+                                    android:text="All reports near my location"
+                                    android:textColor="#1E293B"
+                                    android:textSize="13sp" />
+                            </RadioGroup>
+
+                            <!-- Max Distance Selector (Only visible when "All reports near my location" is selected) -->
+                            <LinearLayout
+                                android:id="@+id/layoutDistanceContainer"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:background="@drawable/bg_input"
+                                android:orientation="vertical"
+                                android:padding="12dp"
+                                android:visibility="gone">
+
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:gravity="center_vertical"
+                                    android:orientation="horizontal">
+
+                                    <TextView
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:text="Max Alert Distance"
+                                        android:textColor="#334155"
+                                        android:textSize="12sp"
+                                        android:textStyle="bold" />
+
+                                    <TextView
+                                        android:id="@+id/tvMaxDistanceValue"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="5 km"
+                                        android:textColor="@color/green"
+                                        android:textSize="12.5sp"
+                                        android:textStyle="bold" />
+                                </LinearLayout>
+
+                                <SeekBar
+                                    android:id="@+id/seekBarDistance"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="6dp"
+                                    android:max="24"
+                                    android:progress="4"
+                                    android:progressTint="@color/green"
+                                    android:thumbTint="@color/green" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:text="Slide to adjust notification radius (1 km – 25 km)."
+                                    android:textColor="#64748B"
+                                    android:textSize="11sp" />
+                            </LinearLayout>
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnTestNotification"
+                                android:layout_width="wrap_content"
+                                android:layout_height="36dp"
+                                android:layout_marginTop="12dp"
+                                android:insetTop="0dp"
+                                android:insetBottom="0dp"
+                                android:text="Send Test Alert"
+                                android:textAllCaps="false"
+                                android:textColor="@color/green"
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                app:backgroundTint="@color/green_light"
+                                app:cornerRadius="8dp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
+                <!-- SECTION 2: PRIVACY DEFAULTS -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -170,7 +247,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="16dp"
-                    app:cardCornerRadius="12dp"
+                    app:cardBackgroundColor="#FFFFFF"
+                    app:cardCornerRadius="14dp"
                     app:cardElevation="1dp"
                     app:strokeColor="#E2E8F0"
                     app:strokeWidth="1dp">
@@ -178,7 +256,6 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:background="@drawable/bg_card"
                         android:orientation="vertical"
                         android:padding="16dp">
 
@@ -188,7 +265,7 @@
                             android:layout_height="wrap_content"
                             android:checked="false"
                             android:text="Always Report Anonymously"
-                            android:textColor="#1E293B"
+                            android:textColor="#0F172A"
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
@@ -196,9 +273,68 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="Pre-check the anonymous option on every newly opened fault form."
-                            android:textColor="@color/grey"
+                            android:text="Automatically pre-check the anonymous box on every new fault submission form."
+                            android:textColor="#64748B"
                             android:textSize="12sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- SECTION 3: OFFLINE STORAGE -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="6dp"
+                    android:text="Offline Map Storage"
+                    android:textColor="#334155"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    app:cardBackgroundColor="#FFFFFF"
+                    app:cardCornerRadius="14dp"
+                    app:cardElevation="1dp"
+                    app:strokeColor="#E2E8F0"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="OpenStreetMap Disk Cache"
+                            android:textColor="#0F172A"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Clear cached street tiles to free up local device storage."
+                            android:textColor="#64748B"
+                            android:textSize="12sp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnClearCache"
+                            android:layout_width="wrap_content"
+                            android:layout_height="40dp"
+                            android:layout_marginTop="12dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:text="Clear Map Tile Cache"
+                            android:textAllCaps="false"
+                            android:textColor="#FFFFFF"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            app:backgroundTint="@color/green"
+                            app:cornerRadius="8dp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -206,24 +342,25 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
-                    android:layout_marginTop="16dp"
-                    android:text="FaultFinder App • Eduvos S4 Project"
-                    android:textColor="@color/grey"
-                    android:textSize="12sp" />
+                    android:layout_marginTop="8dp"
+                    android:text="FaultFinder App • Eduvos Group S4"
+                    android:textColor="#64748B"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
                     android:layout_marginTop="2dp"
-                    android:text="Version 1.0.0"
-                    android:textColor="@color/grey"
+                    android:text="Version 2.0.0"
+                    android:textColor="#94A3B8"
                     android:textSize="11sp" />
             </LinearLayout>
         </ScrollView>
     </LinearLayout>
 
-    <!-- FAB Cluster added to Settings -->
+    <!-- Bottom-Right Speed Dial FAB Cluster -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabLeft"
         android:layout_width="wrap_content"

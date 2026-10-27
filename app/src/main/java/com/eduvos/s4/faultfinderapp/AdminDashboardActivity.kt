@@ -16,6 +16,9 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.activity.enableEdgeToEdge
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.bumptech.glide.Glide
@@ -40,11 +43,26 @@ class AdminDashboardActivity : AppCompatActivity() {
     private lateinit var reportsContainer: LinearLayout
     private lateinit var progressBar: ProgressBar
     private lateinit var refreshButton: Button
+    private lateinit var tvEmptyReports: TextView
+
+    // Segmented Tab Controls
+    private lateinit var tabActive: LinearLayout
+    private lateinit var tabResolved: LinearLayout
+    private lateinit var tvTabActive: TextView
+    private lateinit var tvTabResolved: TextView
+    private lateinit var indicatorTabActive: View
+    private lateinit var indicatorTabResolved: View
 
     private var isAdministrator = false
+    private var allDocuments: List<DocumentSnapshot> = emptyList()
+
+    private val TAB_ACTIVE = 0
+    private val TAB_RESOLVED = 1
+    private var currentTab = TAB_ACTIVE
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
         if (auth.currentUser == null) {
             showLoginRequired()
@@ -53,14 +71,31 @@ class AdminDashboardActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_admin_dashboard)
 
+        // Pushes the top bar down below the status bar and notch
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            insets
+        }
+
         emailText = findViewById(R.id.tvAdminAccountEmail)
         statsText = findViewById(R.id.tvAdminStatisticsSummary)
         messageText = findViewById(R.id.tvAdminMessage)
         reportsContainer = findViewById(R.id.adminReportsContainer)
         progressBar = findViewById(R.id.adminProgressBar)
         refreshButton = findViewById(R.id.btnAdminRefresh)
+        tvEmptyReports = findViewById(R.id.tvEmptyReports)
+
+        tabActive = findViewById(R.id.tabActive)
+        tabResolved = findViewById(R.id.tabResolved)
+        tvTabActive = findViewById(R.id.tvTabActive)
+        tvTabResolved = findViewById(R.id.tvTabResolved)
+        indicatorTabActive = findViewById(R.id.indicatorTabActive)
+        indicatorTabResolved = findViewById(R.id.indicatorTabResolved)
 
         emailText.text = auth.currentUser?.email ?: "Administrator"
+
+        setupTabs()
 
         refreshButton.setOnClickListener {
             if (isAdministrator) loadReports()
@@ -84,16 +119,45 @@ class AdminDashboardActivity : AppCompatActivity() {
         verifyAdministrator()
     }
 
+    private fun setupTabs() {
+        tabActive.setOnClickListener { switchTab(TAB_ACTIVE) }
+        tabResolved.setOnClickListener { switchTab(TAB_RESOLVED) }
+    }
+
+    private fun switchTab(tab: Int) {
+        currentTab = tab
+        if (tab == TAB_ACTIVE) {
+            tvTabActive.setTextColor(Color.parseColor("#DC2626"))
+            tvTabActive.setTypeface(null, Typeface.BOLD)
+            indicatorTabActive.setBackgroundColor(Color.parseColor("#DC2626"))
+
+            tvTabResolved.setTextColor(Color.parseColor("#64748B"))
+            tvTabResolved.setTypeface(null, Typeface.NORMAL)
+            indicatorTabResolved.setBackgroundColor(Color.parseColor("#F1F5F9"))
+        } else {
+            tvTabResolved.setTextColor(Color.parseColor("#15803D")) // Green for resolved tab
+            tvTabResolved.setTypeface(null, Typeface.BOLD)
+            indicatorTabResolved.setBackgroundColor(Color.parseColor("#15803D"))
+
+            tvTabActive.setTextColor(Color.parseColor("#64748B"))
+            tvTabActive.setTypeface(null, Typeface.NORMAL)
+            indicatorTabActive.setBackgroundColor(Color.parseColor("#F1F5F9"))
+        }
+        renderCurrentTab()
+    }
+
     private fun verifyAdministrator() {
         val user = auth.currentUser
+
         if (user == null) {
             showLoginRequired()
             return
         }
 
         progressBar.visibility = View.VISIBLE
-        messageText.text = "Verifying administrator credentials..."
+        messageText.text = "Verifying administrator permissions..."
 
+        // Force-refresh the token so the newly assigned custom claim is checked.
         user.getIdToken(true)
             .addOnSuccessListener { result ->
                 val hasAdminClaim = result.claims["admin"] == true
@@ -101,7 +165,13 @@ class AdminDashboardActivity : AppCompatActivity() {
                 if (!hasAdminClaim) {
                     isAdministrator = false
                     auth.signOut()
-                    Toast.makeText(this, "Access denied: Admin credentials required.", Toast.LENGTH_LONG).show()
+
+                    Toast.makeText(
+                        this,
+                        "Access denied. Administrator permission is required.",
+                        Toast.LENGTH_LONG
+                    ).show()
+
                     showLoginRequired()
                     return@addOnSuccessListener
                 }
@@ -112,7 +182,9 @@ class AdminDashboardActivity : AppCompatActivity() {
             }
             .addOnFailureListener { error ->
                 progressBar.visibility = View.GONE
-                messageText.text = "Auth verification error: ${error.localizedMessage ?: "Unknown error"}"
+                messageText.text =
+                    "Could not verify administrator access: " +
+                            (error.localizedMessage ?: "Unknown error")
             }
     }
 
@@ -121,50 +193,90 @@ class AdminDashboardActivity : AppCompatActivity() {
 
         progressBar.visibility = View.VISIBLE
         refreshButton.isEnabled = false
-        messageText.text = "Retrieving live municipal reports..."
+        messageText.text = "Loading fault reports..."
 
         db.collection("faults")
             .get()
             .addOnSuccessListener { result ->
                 progressBar.visibility = View.GONE
                 refreshButton.isEnabled = true
-                reportsContainer.removeAllViews()
 
-                val documents = result.documents.sortedByDescending {
+                allDocuments = result.documents.sortedByDescending {
                     getTimestampMillis(it, "createdAt")
                 }
 
-                val total = documents.size
-                val pending = documents.count {
+                val total = allDocuments.size
+                val pending = allDocuments.count {
                     it.getString("status").equals("Pending", true) ||
                             it.getString("status").equals("Submitted", true)
                 }
-                val inProgress = documents.count {
+                val inProgress = allDocuments.count {
                     it.getString("status").equals("In Progress", true)
                 }
-                val resolved = documents.count {
+                val resolvedCount = allDocuments.count {
                     it.getString("status").equals("Resolved", true)
                 }
+                val activeCount = total - resolvedCount
 
-                statsText.text = "Total: $total   •   Pending: $pending   •   In Progress: $inProgress   •   Resolved: $resolved"
+                statsText.text = """
+                    Total reports: $total
+                    Pending / Submitted: $pending
+                    In progress: $inProgress
+                    Resolved: $resolvedCount
+                """.trimIndent()
 
-                if (documents.isEmpty()) {
-                    messageText.text = "No fault reports currently logged in database."
-                    return@addOnSuccessListener
-                }
+                tvTabActive.text = "Active ($activeCount)"
+                tvTabResolved.text = "Resolved ($resolvedCount)"
 
-                messageText.text = "Displaying $total managed fault record(s)."
-                documents.forEach { document -> addReportCard(document) }
+                renderCurrentTab()
             }
             .addOnFailureListener { error ->
                 progressBar.visibility = View.GONE
                 refreshButton.isEnabled = true
-                messageText.text = "Could not load reports: ${error.localizedMessage ?: "Unknown error"}"
+                messageText.text =
+                    "Could not load reports: " +
+                            (error.localizedMessage ?: "Unknown error")
             }
     }
 
+    private fun renderCurrentTab() {
+        reportsContainer.removeAllViews()
+
+        val filteredDocs = if (currentTab == TAB_ACTIVE) {
+            allDocuments.filter {
+                !it.getString("status").equals("Resolved", ignoreCase = true)
+            }
+        } else {
+            allDocuments.filter {
+                it.getString("status").equals("Resolved", ignoreCase = true)
+            }
+        }
+
+        if (filteredDocs.isEmpty()) {
+            tvEmptyReports.visibility = View.VISIBLE
+            tvEmptyReports.text = if (currentTab == TAB_ACTIVE) {
+                "No active faults requiring attention."
+            } else {
+                "No resolved / fixed faults found in the archive."
+            }
+            messageText.text = if (currentTab == TAB_ACTIVE) "Showing 0 active report(s)." else "Showing 0 resolved report(s)."
+            return
+        }
+
+        tvEmptyReports.visibility = View.GONE
+        messageText.text = if (currentTab == TAB_ACTIVE) {
+            "Showing ${filteredDocs.size} active fault report(s)."
+        } else {
+            "Showing ${filteredDocs.size} resolved / fixed fault report(s)."
+        }
+
+        filteredDocs.forEach { document ->
+            addReportCard(document)
+        }
+    }
+
     // =========================================================================
-    // CLEANED UP DASHBOARD REPORT CARD
+    // REPORT CARD BUILDER
     // =========================================================================
 
     private fun addReportCard(document: DocumentSnapshot) {
@@ -192,7 +304,7 @@ class AdminDashboardActivity : AppCompatActivity() {
             setPadding(dp(16), dp(14), dp(16), dp(14))
         }
 
-        // Header Row: Reference + Status Pill
+        // Top Row: Reference & Category + Status Badge
         val topRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -222,7 +334,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         }
         innerLayout.addView(titleView)
 
-        // Subtitle / Details
+        // Subtitle & Location
         val locationView = TextView(this).apply {
             text = "📍 $location  •  Submitted ${formatDate(getTimestampMillis(document, "createdAt"))}"
             textSize = 12f
@@ -230,7 +342,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         }
         innerLayout.addView(locationView)
 
-        // Priority Stripe & Manage Button Row
+        // Bottom Row: Priority Stripe + Manage Button
         val bottomRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -264,7 +376,7 @@ class AdminDashboardActivity : AppCompatActivity() {
     }
 
     // =========================================================================
-    // CLEANED UP REPORT DETAILS & ACTIONS DIALOG (With Delete Feature)
+    // REPORT DETAILS DIALOG (Update Status, History, Delete)
     // =========================================================================
 
     private fun showReportDetails(document: DocumentSnapshot) {
@@ -289,7 +401,6 @@ class AdminDashboardActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
         }
 
-        // Optional photo preview if attached
         if (imageUrl.isNotBlank()) {
             val photoView = ImageView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(
@@ -306,7 +417,6 @@ class AdminDashboardActivity : AppCompatActivity() {
             contentLayout.addView(photoView)
         }
 
-        // Structured Info Fields
         val infoBox = TextView(this).apply {
             text = """
                 📌 Reference: $reference
@@ -344,10 +454,6 @@ class AdminDashboardActivity : AppCompatActivity() {
             .show()
     }
 
-    // =========================================================================
-    // DELETE FAULT ACTION (CRUD DELIVERABLE 4)
-    // =========================================================================
-
     private fun confirmDeleteFault(document: DocumentSnapshot) {
         val reference = document.getString("ref") ?: document.id
 
@@ -374,10 +480,6 @@ class AdminDashboardActivity : AppCompatActivity() {
             .show()
     }
 
-    // =========================================================================
-    // CLEANED UP STATUS UPDATE MENU
-    // =========================================================================
-
     private fun showStatusOptions(document: DocumentSnapshot) {
         if (!isAdministrator) return
 
@@ -390,8 +492,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Select New Resolution Status")
             .setItems(statuses) { _, which ->
-                val selectedStatus = statuses[which]
-                showStatusCommentDialog(document, selectedStatus)
+                showStatusCommentDialog(document, statuses[which])
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -471,10 +572,6 @@ class AdminDashboardActivity : AppCompatActivity() {
             Toast.makeText(this, "Could not update status: ${error.localizedMessage}", Toast.LENGTH_LONG).show()
         }
     }
-
-    // =========================================================================
-    // CLEANED UP STATUS HISTORY DIALOG
-    // =========================================================================
 
     private fun loadStatusHistory(faultId: String) {
         if (!isAdministrator) return
