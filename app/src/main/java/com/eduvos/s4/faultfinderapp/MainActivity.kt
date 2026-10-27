@@ -3,9 +3,12 @@ package com.eduvos.s4.faultfinderapp
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
+import android.graphics.Paint
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -40,10 +43,17 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
+import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Home dashboard activity featuring an embedded OpenStreetMap preview with a live GPS blue dot,
+ * real-time search bar, live GPS nearest-fault sorting, card-based recent reports list,
+ * proximity notification checks, and speed-dial navigation.
+ */
 class MainActivity : AppCompatActivity() {
 
     data class FaultPreview(
@@ -67,6 +77,7 @@ class MainActivity : AppCompatActivity() {
     )
 
     private lateinit var map: MapView
+    private var locationOverlay: MyLocationNewOverlay? = null
     private lateinit var fabMain: FloatingActionButton
     private lateinit var fabReport: FloatingActionButton
     private lateinit var fabMap: FloatingActionButton
@@ -77,6 +88,7 @@ class MainActivity : AppCompatActivity() {
 
     private val defaultCenter = GeoPoint(-33.8120, 18.4900)
     private var userLocation: Location? = null
+    private var hasCenteredOnUser = false
     private val repository = FirebaseRepository()
     private var isFabMenuOpen = false
     private var faultsListener: ListenerRegistration? = null
@@ -88,9 +100,9 @@ class MainActivity : AppCompatActivity() {
     private val requestLocationPermission = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        ) {
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (fineGranted || coarseGranted) {
             updateUserLocation()
         }
     }
@@ -162,16 +174,34 @@ class MainActivity : AppCompatActivity() {
             if (lastLoc != null) {
                 userLocation = lastLoc
                 recalculateDistancesAndSort()
+
+                if (!hasCenteredOnUser && ::map.isInitialized) {
+                    hasCenteredOnUser = true
+                    map.controller.animateTo(GeoPoint(lastLoc.latitude, lastLoc.longitude))
+                    map.controller.setZoom(15.0)
+                }
             }
 
             val listener = object : LocationListener {
                 override fun onLocationChanged(location: Location) {
                     userLocation = location
                     recalculateDistancesAndSort()
+
+                    if (!hasCenteredOnUser && ::map.isInitialized) {
+                        hasCenteredOnUser = true
+                        map.controller.animateTo(GeoPoint(location.latitude, location.longitude))
+                        map.controller.setZoom(15.0)
+                    }
                     locationManager.removeUpdates(this)
                 }
+
+                @Deprecated("Deprecated in Java")
+                override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+                override fun onProviderEnabled(provider: String) {}
+                override fun onProviderDisabled(provider: String) {}
             }
-            providers.forEach { locationManager.requestLocationUpdates(it, 2000L, 5f, listener) }
+
+            providers.forEach { locationManager.requestLocationUpdates(it, 1000L, 2f, listener) }
         } catch (_: SecurityException) { }
     }
 
@@ -193,6 +223,18 @@ class MainActivity : AppCompatActivity() {
         map.isFlingEnabled = true
         map.zoomController.setVisibility(CustomZoomButtonsController.Visibility.SHOW_AND_FADEOUT)
 
+        val provider = GpsMyLocationProvider(this).apply {
+            addLocationSource(LocationManager.NETWORK_PROVIDER)
+        }
+
+        // Custom clean blue dot without default osmdroid arrow icon
+        val blueDot = createCleanBlueDot()
+        locationOverlay = MyLocationNewOverlay(provider, map).apply {
+            enableMyLocation()
+            setDirectionArrow(blueDot, blueDot)
+        }
+        map.overlays.add(locationOverlay)
+
         val colorMatrix = ColorMatrix().apply { setSaturation(0.1f) }
         map.overlayManager.tilesOverlay.setColorFilter(ColorMatrixColorFilter(colorMatrix))
 
@@ -206,10 +248,31 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun createCleanBlueDot(): Bitmap {
+        val density = resources.displayMetrics.density
+        val size = (16 * density).toInt().coerceAtLeast(1)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        paint.color = Color.WHITE
+        paint.style = Paint.Style.FILL
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+
+        paint.color = Color.parseColor("#2563EB")
+        canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - (2.5f * density), paint)
+
+        return bitmap
+    }
+
     private fun refreshMapMarkers() {
         if (!::map.isInitialized) return
         map.overlays.clear()
 
+        // Re-attach blue-dot GPS location overlay
+        locationOverlay?.let { map.overlays.add(it) }
+
+        // Render active faults (excluding resolved faults)
         val activeFaults = recentFaults.filter { !it.status.equals("Resolved", ignoreCase = true) }
         activeFaults.forEach { fault ->
             val marker = Marker(map).apply {
@@ -465,13 +528,19 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (::map.isInitialized) map.onResume()
+        if (::map.isInitialized) {
+            map.onResume()
+            locationOverlay?.enableMyLocation()
+        }
         checkAdminButtonVisibility()
         updateUserLocation()
     }
 
     override fun onPause() {
-        if (::map.isInitialized) map.onPause()
+        if (::map.isInitialized) {
+            map.onPause()
+            locationOverlay?.disableMyLocation()
+        }
         super.onPause()
     }
 
