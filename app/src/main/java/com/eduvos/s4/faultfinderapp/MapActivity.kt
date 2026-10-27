@@ -3,12 +3,9 @@ package com.eduvos.s4.faultfinderapp
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
-import android.graphics.Paint
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -32,14 +29,7 @@ import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
-import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 
-/**
- * Full-screen interactive OpenStreetMap activity supporting live Firestore fault markers,
- * clean blue-dot GPS user location tracking, automatic filtering of resolved faults,
- * category filtering, and interactive GPS location picking.
- */
 class MapActivity : AppCompatActivity() {
 
     data class MapFaultPin(
@@ -53,7 +43,6 @@ class MapActivity : AppCompatActivity() {
     )
 
     private lateinit var map: MapView
-    private var locationOverlay: MyLocationNewOverlay? = null
     private val defaultCenter = GeoPoint(-33.8120, 18.4900)
     private val repository = FirebaseRepository()
     private var allMapFaults = listOf<MapFaultPin>()
@@ -72,7 +61,7 @@ class MapActivity : AppCompatActivity() {
             } else {
                 Toast.makeText(
                     this,
-                    "Location permission is needed to show where you are.",
+                    "Location permission is needed to find your location.",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -111,11 +100,13 @@ class MapActivity : AppCompatActivity() {
         }
 
         setupMap()
-        requestCurrentLocation()
         loadLiveFaultPins()
 
         if (intent.getBooleanExtra("PICK_LOCATION", false)) {
             Toast.makeText(this, "Tap anywhere on the map to select the fault location", Toast.LENGTH_LONG).show()
+            requestCurrentLocation()
+        } else if (!intent.hasExtra("FOCUS_LAT")) {
+            requestCurrentLocation()
         }
 
         setupCategoryFilters()
@@ -130,18 +121,6 @@ class MapActivity : AppCompatActivity() {
         map.isFlingEnabled = true
         map.zoomController.setVisibility(CustomZoomButtonsController.Visibility.SHOW_AND_FADEOUT)
 
-        val provider = GpsMyLocationProvider(this).apply {
-            addLocationSource(LocationManager.NETWORK_PROVIDER)
-        }
-
-        // Custom clean blue dot without default osmdroid arrow icon
-        val blueDot = createCleanBlueDot()
-        locationOverlay = MyLocationNewOverlay(provider, map).apply {
-            enableMyLocation()
-            setDirectionArrow(blueDot, blueDot)
-        }
-        map.overlays.add(locationOverlay)
-
         val colorMatrix = ColorMatrix().apply { setSaturation(0.15f) }
         map.overlayManager.tilesOverlay.setColorFilter(ColorMatrixColorFilter(colorMatrix))
 
@@ -155,25 +134,6 @@ class MapActivity : AppCompatActivity() {
             map.controller.setZoom(13.0)
             map.controller.setCenter(defaultCenter)
         }
-    }
-
-    private fun createCleanBlueDot(): Bitmap {
-        val density = resources.displayMetrics.density
-        val size = (18 * density).toInt().coerceAtLeast(1)
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        // Outer white border ring
-        paint.color = Color.WHITE
-        paint.style = Paint.Style.FILL
-        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
-
-        // Solid blue center dot (removes internal white arrow)
-        paint.color = Color.parseColor("#2563EB")
-        canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - (2.5f * density), paint)
-
-        return bitmap
     }
 
     private fun loadLiveFaultPins() {
@@ -202,13 +162,8 @@ class MapActivity : AppCompatActivity() {
         activeCategoryFilter = categoryFilter
         map.overlays.clear()
 
-        // 1. Keep map tap listener at index 0
         setupMapTapListener()
 
-        // 2. Re-add blue dot overlay so category switches don't erase user position
-        locationOverlay?.let { map.overlays.add(it) }
-
-        // 3. Filter category and hide resolved faults
         val filteredByCategory = if (categoryFilter == null) {
             allMapFaults
         } else {
@@ -236,7 +191,6 @@ class MapActivity : AppCompatActivity() {
             map.overlays.add(marker)
         }
 
-        // 4. If deep-linked from TrackActivity, ensure focused pin is centered and opened
         if (intent.hasExtra("FOCUS_LAT")) {
             val focusLat = intent.getDoubleExtra("FOCUS_LAT", defaultCenter.latitude)
             val focusLon = intent.getDoubleExtra("FOCUS_LON", defaultCenter.longitude)
@@ -246,9 +200,9 @@ class MapActivity : AppCompatActivity() {
 
             val existingMarker = map.overlays
                 .filterIsInstance<Marker>()
-                .firstOrNull { m ->
-                    m.position.latitude == focusedPoint.latitude &&
-                            m.position.longitude == focusedPoint.longitude
+                .firstOrNull { marker ->
+                    marker.position.latitude == focusedPoint.latitude &&
+                            marker.position.longitude == focusedPoint.longitude
                 }
 
             if (existingMarker != null) {
@@ -352,17 +306,15 @@ class MapActivity : AppCompatActivity() {
                 locationManager.getLastKnownLocation(provider)
             }
 
-            if (lastLocation != null && !intent.hasExtra("FOCUS_LAT")) {
+            if (lastLocation != null) {
                 map.controller.setZoom(16.0)
                 map.controller.animateTo(GeoPoint(lastLocation.latitude, lastLocation.longitude))
             }
 
             val listener = object : LocationListener {
                 override fun onLocationChanged(location: Location) {
-                    if (!intent.hasExtra("FOCUS_LAT")) {
-                        map.controller.setZoom(16.0)
-                        map.controller.animateTo(GeoPoint(location.latitude, location.longitude))
-                    }
+                    map.controller.setZoom(16.0)
+                    map.controller.animateTo(GeoPoint(location.latitude, location.longitude))
                     locationManager.removeUpdates(this)
                 }
 
@@ -407,36 +359,38 @@ class MapActivity : AppCompatActivity() {
         map.overlays.add(0, MapEventsOverlay(receiver))
     }
 
-    private fun getPriorityColor(priority: String): Int = when (priority.trim().lowercase()) {
-        "critical", "high" -> Color.rgb(220, 38, 38)
-        "medium" -> Color.rgb(245, 158, 11)
-        "low" -> Color.rgb(22, 163, 74)
-        else -> Color.GRAY
+    private fun getPriorityColor(priority: String): Int {
+        return when (priority.trim().lowercase()) {
+            "critical", "high" -> Color.rgb(220, 38, 38)
+            "medium" -> Color.rgb(245, 158, 11)
+            "low" -> Color.rgb(22, 163, 74)
+            else -> Color.GRAY
+        }
     }
 
-    private fun getFaultIcon(category: String): Int = when (category.trim().lowercase()) {
-        "roads" -> R.drawable.ic_fault_roadwork
-        "water" -> R.drawable.ic_fault_water
-        "electricity" -> R.drawable.ic_fault_electricity
-        "streetlights" -> R.drawable.ic_fault_streetlights
-        "waste" -> R.drawable.ic_fault_waste
-        else -> R.drawable.ic_fault_default
+    private fun getFaultIcon(category: String): Int {
+        return when (category.trim().lowercase()) {
+            "roads" -> R.drawable.ic_fault_roadwork
+            "water" -> R.drawable.ic_fault_water
+            "electricity" -> R.drawable.ic_fault_electricity
+            "streetlights" -> R.drawable.ic_fault_streetlights
+            "waste" -> R.drawable.ic_fault_waste
+            else -> R.drawable.ic_fault_default
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        map.onResume()
-        locationOverlay?.enableMyLocation()
+        if (::map.isInitialized) map.onResume()
     }
 
     override fun onPause() {
+        if (::map.isInitialized) map.onPause()
         super.onPause()
-        map.onPause()
-        locationOverlay?.disableMyLocation()
     }
 
     override fun onDestroy() {
+        if (::map.isInitialized) map.onDetach()
         super.onDestroy()
-        map.onDetach()
     }
 }
